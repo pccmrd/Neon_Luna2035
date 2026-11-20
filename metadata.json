@@ -1,0 +1,6 @@
+{
+  "name": "Keres-9",
+  "description": "KERES-9: Catalog Zero — a 2D Newtonian lunar prospecting and surveying simulation set in cislunar orbit, 2035.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
