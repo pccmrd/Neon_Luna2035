@@ -562,6 +562,17 @@ private fun edges() {
                     Hooks.toast("ARRAY LIVE — bodies in the cone are surveyed automatically · drag the dial to find deep resonances", null)
                 }
             }
+            "light" -> {
+                if (ev != null) {
+                    ev.lightOn = !ev.lightOn
+                    AU.ui()
+                    if (!GS.CTL.ai) Hooks.toast(if (ev.lightOn) "HEADLAMP ON" else "HEADLAMP OFF", null)
+                } else if (pl != null) {
+                    pl.lightOn = !pl.lightOn
+                    AU.ui()
+                    if (!GS.CTL.ai) Hooks.toast(if (pl.lightOn) "FLOODLIGHT ON" else "FLOODLIGHT OFF", null)
+                }
+            }
             "ctx" -> PC.ctx.f?.invoke()
             "alt" -> PC.alt?.f?.invoke()
             else -> used = false

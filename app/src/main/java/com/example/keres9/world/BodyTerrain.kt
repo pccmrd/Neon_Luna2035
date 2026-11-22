@@ -80,7 +80,17 @@ fun pR(b: Body, cx: Int, cy: Int) {
     val i = cy * b.gw + cx
     val m = b.sol[i]
     if (m == 0) {
-        b.roofPixels[i] = 0
+        val cap = b.roofMask[i].toInt()
+        if (cap != 0) {
+            val hash = ((cx * 73856093) xor (cy * 19349663) xor b.seed).toLong() and 0xFFFFFFFFL
+            var f = 0.80 + (hash % 100L) / 360.0
+            if (cy > 0 && b.sol[i - b.gw] == 0 && b.roofMask[i - b.gw].toInt() == 0) f += 0.14
+            if (cy < b.gh - 1 && b.sol[i + b.gw] == 0 && b.roofMask[i + b.gw].toInt() == 0) f -= 0.16
+            val mat = MAT.getOrNull(cap) ?: MAT[1]!!
+            b.roofPixels[i] = sh(mat.color, f)
+        } else {
+            b.roofPixels[i] = 0
+        }
         b.roofDirty = true
         return
     }
@@ -99,7 +109,18 @@ fun pF(b: Body, cx: Int, cy: Int) {
     if (cx < 0 || cy < 0 || cx >= b.gw || cy >= b.gh) return
     val i = cy * b.gw + cx
     val f = b.flr[i]
-    b.floorPixels[i] = if (f == 0 || f >= FLR.size) 0 else FLR[f]
+    if (f == 0 || f >= FLR.size) {
+        b.floorPixels[i] = 0
+    } else {
+        val hash = ((cx * 297121507) xor (cy * 486187739) xor b.seed).toLong() and 0xFFFFFFFFL
+        var shade = 0.90 + (hash % 100L) / 480.0
+        if (f == 1 || f == 2) {
+            if ((cx % 3 == 0) || (cy % 3 == 0)) shade *= 0.91
+        } else if (f == 4 || f == 5 || f == 7) {
+            if ((hash % 11L) == 0L) shade *= 1.15
+        }
+        b.floorPixels[i] = sh(FLR[f], shade)
+    }
     b.floorDirty = true
 }
 
@@ -117,6 +138,7 @@ fun cut(b: Body, cx: Int, cy: Int, d: Double, quiet: Boolean = false): Int {
     }
     b.dmg.remove(i)
     b.sol[i] = 0
+    b.roofMask[i] = 0
     if (b.flr[i] == 0) b.flr[i] = 4
     b.cut.add(i)
     pR(b, cx, cy)

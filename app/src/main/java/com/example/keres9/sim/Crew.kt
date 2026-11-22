@@ -82,6 +82,10 @@ fun boardShift(): Boolean {
     val G = GS.G ?: return false
     val c = G.crew ?: return false
     val ev = GS.ev ?: return false
+    if (!G.paperworkDone || !G.bunkClaimed) {
+        Hooks.toast("Manager Liu: \"Clear Consortium Intake and claim your Room 14B bunk before stepping onto MULE-3.\"", "warn")
+        return false
+    }
     if (c.state != "idle") return false
     val site = pickSite() ?: return false
     c.state = "out"
@@ -109,7 +113,7 @@ fun boardShift(): Boolean {
     } else null
     undock(c.ship)
     Hooks.toast(
-        "MULE-3 · Foreman Lu: \"Strap in. Today we work ${site.name}. Shift is ${(C.SHIFT / 60.0).roundToInt()} minutes, sack goes in the tally.\"",
+        "MULE-3 · Manager Liu: \"Strap in. Today's sector is ${site.name}. Shift is ${(C.SHIFT / 60.0).roundToInt()} minutes; headlamp on inside dark fissures.\"",
         "good"
     )
     return true
@@ -375,7 +379,7 @@ fun crewTick(dt: Double) {
             stepMates(c, dt)
             if (c.t <= 60.0 && !c.warned) {
                 c.warned = true
-                Hooks.toast("Lu: \"One minute, people. Start bringing it home.\"", "warn")
+                Hooks.toast("Manager Liu: \"One minute, people. Start bringing it home.\"", "warn")
                 AU.warn()
             }
             if (c.t <= 0.0 && !c.horn) {
@@ -390,7 +394,7 @@ fun crewTick(dt: Double) {
                 val ev = GS.ev
                 val youIn = ev == null || ev.hide
                 if (c.grace <= 0.0 && !youIn && ev != null) {
-                    Hooks.toast("Lu reels you in on the tether. \"That comes out of your share.\"", "bad")
+                    Hooks.toast("Manager Liu reels you in on the tether. \"That comes out of your share.\"", "bad")
                     c.late = true
                     reelIn()
                 }
@@ -440,7 +444,7 @@ fun crewBoard() {
         c.horn = true
         c.t = 0.0
         c.grace = 75.0
-        Hooks.toast("You call it early. Lu sounds the horn.", "warn")
+        Hooks.toast("You call it early. Manager Liu sounds the horn.", "warn")
     }
     ev.hide = true
     GS.G?.ride = RideState(kind = "shuttle", ship = c.ship)

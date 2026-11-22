@@ -235,6 +235,7 @@ private fun handleHardwareKey(key: Key, down: Boolean): Boolean {
         Key.Tab -> "Tab"
         Key.G -> "KeyG"
         Key.C -> "KeyC"
+        Key.L -> "KeyL"
         Key.P -> "KeyP"
         Key.H -> "KeyH"
         Key.Escape -> "Escape"
@@ -253,6 +254,7 @@ private fun handleHardwareKey(key: Key, down: Boolean): Boolean {
                 "KeyT", "Tab" -> IN.edge.add("target")
                 "KeyG" -> IN.edge.add("gear")
                 "KeyC" -> IN.edge.add("scan")
+                "KeyL" -> IN.edge.add("light")
                 "KeyP" -> IN.edge.add("ai")
                 "KeyH" -> IN.edge.add("help")
                 "Escape" -> IN.edge.add("pause")

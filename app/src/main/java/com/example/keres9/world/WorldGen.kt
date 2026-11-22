@@ -54,6 +54,7 @@ object SITES {
     lateinit var depot: Body
     lateinit var tycho: Body
     lateinit var sel: Body
+    lateinit var liner: Body
     lateinit var vul: Body
     lateinit var ares: Body
     lateinit var gaia: Body
@@ -205,6 +206,7 @@ fun mkRock(r: () -> Double, x: Double, y: Double, id: Int, R: Double, type: Stri
             }
         }
     }
+    val surfCrater = ByteArray(gw * gw)
     // surface craters (vapour plumes on comets)
     for (c2 in 0 until ri(r, 2, 5)) {
         val t = r() * TAU
@@ -219,8 +221,10 @@ fun mkRock(r: () -> Double, x: Double, y: Double, id: Int, R: Double, type: Stri
         for (cy in yStart until yEnd) {
             for (cx in xStart until xEnd) {
                 if (hy(cx - ccx, cy - ccy) < cr && orig[cy * gw + cx].toInt() != 0) {
-                    b.sol[cy * gw + cx] = 0
-                    b.flr[cy * gw + cx] = 1
+                    val idx = cy * gw + cx
+                    b.sol[idx] = 0
+                    b.flr[idx] = 1
+                    surfCrater[idx] = 1
                 }
             }
         }
@@ -286,7 +290,7 @@ fun mkRock(r: () -> Double, x: Double, y: Double, id: Int, R: Double, type: Stri
                 "ice" -> 5
                 "geode", "vug" -> 7
                 "claim", "core" -> 8
-                else -> 1
+                else -> 4
             }
             disc(ch.cx.toDouble(), ch.cy.toDouble(), ch.r.toDouble(), f)
             if (biome == "geode" || biome == "vug" || biome == "ice") {
@@ -320,13 +324,13 @@ fun mkRock(r: () -> Double, x: Double, y: Double, id: Int, R: Double, type: Stri
         }
         for (i in 1 until b.cham.size) {
             if (b.cham[i].biome != "core" && b.cham[i - 1].biome != "core") {
-                path(b.cham[i - 1].cx.toDouble(), b.cham[i - 1].cy.toDouble(), b.cham[i].cx.toDouble(), b.cham[i].cy.toDouble(), 2.0, 1)
+                path(b.cham[i - 1].cx.toDouble(), b.cham[i - 1].cy.toDouble(), b.cham[i].cx.toDouble(), b.cham[i].cy.toDouble(), 2.0, 4)
             }
         }
         val ch = b.cham.firstOrNull { it.biome != "core" && it.biome != "claim" && !(o.rich && it.biome == "vug") }
         if (ch != null && r() < 0.75) {
             val t = atan2(ch.cy - c0, ch.cx - c0) + rr(r, -0.4, 0.4)
-            path(ch.cx.toDouble(), ch.cy.toDouble(), c0 + cos(t) * (R + 3.0), c0 + sin(t) * (R + 3.0), if (ch.r >= 8) 8.0 else 3.0, 1)
+            path(ch.cx.toDouble(), ch.cy.toDouble(), c0 + cos(t) * (R + 3.0), c0 + sin(t) * (R + 3.0), if (ch.r >= 8) 8.0 else 3.0, 4)
         }
     }
     // flood-fill from border
@@ -396,6 +400,13 @@ fun mkRock(r: () -> Double, x: Double, y: Double, id: Int, R: Double, type: Stri
         val v = cw(b, b.veins[0] % gw, b.veins[0] / gw)
         addContact(r, "vein", v.x, v.y, b, "platinum-group concentration")
     }
+    // Seal all interior chambers and cave tunnels with opaque exterior rock roof caps
+    val capMat: Byte = if (type == "ice" || type == "comet") 3 else if (type == "metal") 2 else 1
+    for (i in 0 until gw * gw) {
+        if (b.sol[i] == 0 && b.flr[i] != 0 && orig[i].toInt() != 0 && surfCrater[i].toInt() == 0) {
+            b.roofMask[i] = capMat
+        }
+    }
     for (cy in 0 until gw) {
         for (cx in 0 until gw) {
             pR(b, cx, cy)
@@ -413,7 +424,8 @@ fun mkRock(r: () -> Double, x: Double, y: Double, id: Int, R: Double, type: Stri
                 else -> null
             }
             if (col != null) {
-                b.glow.add(GlowSpot((cx + 0.5 - c0) * C.CS, (cy + 0.5 - c0) * C.CS, col, rr(r, 5.0, 12.0), open[i].toInt() != 0))
+                val sealed = b.roofMask[i].toInt() != 0 || open[i].toInt() == 0
+                b.glow.add(GlowSpot((cx + 0.5 - c0) * C.CS, (cy + 0.5 - c0) * C.CS, col, rr(r, 5.0, 12.0), !sealed))
             }
         }
     }
@@ -474,7 +486,7 @@ private fun room(b: Body, x: Int, y: Int, w: Int, h: Int, kind: String, name: St
     fill(b, x + 1, y + 1, w - 2, h - 2, 2)
     val col = when (kind) {
         "bar", "home", "cargo" -> PAL.amber
-        "crew", "market" -> PAL.gold
+        "crew", "market", "intake" -> PAL.gold
         "catalog", "lift" -> PAL.cyan
         "yard" -> PAL.green
         "workshop" -> PAL.ember
@@ -491,9 +503,6 @@ private fun pad(b: Body, cx: Int, cy: Int, dir: Double, name: String = "PAD ${b.
 private fun lc(b: Body, cx: Double, cy: Double): Vec2 = Vec2((cx + 0.5) * b.cs - (b.gw * b.cs) / 2.0, (cy + 0.5) * b.cs - (b.gh * b.cs) / 2.0)
 
 private val COL_2C3642 = parseHexColor("#2c3642")
-private val COL_4A4640 = parseHexColor("#4a4640")
-private val COL_38434F = parseHexColor("#38434f")
-private val COL_FFB347 = parseHexColor("#ffb347")
 private val COL_2A333F = parseHexColor("#2a333f")
 private val COL_8A6A2F = parseHexColor("#8a6a2f")
 private val COL_1F6F8F = parseHexColor("#1f6f8f")
@@ -508,20 +517,200 @@ private val COL_53D9FF = parseHexColor("#53d9ff")
 private val COL_FFD166 = parseHexColor("#ffd166")
 private val COL_6B6156 = parseHexColor("#6b6156")
 
+private val COL_HULL_SELENE = parseHexColor("#50647a")
+private val COL_HULL_SPINE = parseHexColor("#667c94")
+private val COL_HULL_LINER = parseHexColor("#8ea1b5")
+private val COL_HULL_LINER_STERN = parseHexColor("#2b3645")
+private val COL_HULL_REFINERY = parseHexColor("#474e57")
+private val COL_HULL_MARS = parseHexColor("#738496")
+private val COL_HULL_EARTH = parseHexColor("#8798aa")
+private val COL_HULL_SURF = parseHexColor("#675f55")
+private val COL_HULL_HANGAR = parseHexColor("#56534e")
+private val COL_FOIL_GOLD = parseHexColor("#b38a36")
+private val COL_COPPER_FIN = parseHexColor("#8c5230")
+private val COL_STRIPE_BLUE = parseHexColor("#2478a8")
+private val COL_STRIPE_AMBER = parseHexColor("#d69a3a")
+private val COL_POD_TEAL = parseHexColor("#2f7486")
+private val COL_POD_OLIVE = parseHexColor("#4d7557")
+private val COL_POD_RUST = parseHexColor("#9e6032")
+private val COL_VESTIBULE = parseHexColor("#1e2a38")
+
 private fun paintSt(b: Body, r: () -> Double) {
+    fun occ(cx: Int, cy: Int): Boolean {
+        if (cx !in 0 until b.gw || cy !in 0 until b.gh) return false
+        val i = cy * b.gw + cx
+        return b.sol[i] != 0 || b.flr[i] != 0
+    }
+
+    val hullBase = when (b.type) {
+        "liner" -> COL_HULL_LINER
+        "selene" -> COL_HULL_SELENE
+        "vulcan" -> COL_HULL_REFINERY
+        "mars" -> COL_HULL_MARS
+        "earth" -> COL_HULL_EARTH
+        "hab" -> COL_HULL_SURF
+        "depot", "tycho" -> COL_HULL_HANGAR
+        else -> COL_HULL_SELENE
+    }
+
     for (cy in 0 until b.gh) {
         for (cx in 0 until b.gw) {
             val i = cy * b.gw + cx
-            if (b.flr[i] != 0) {
+            if (occ(cx, cy)) {
                 val n = ((((cx * 73856093L) xor (cy * 19349663L) xor b.seed.toLong()) and 0xFFFFFFFFL) % 100L).toInt()
-                b.roofPixels[i] = if (cx % 7 == 0 || cy % 7 == 0) COL_2C3642 else sh(if (b.surf) COL_4A4640 else COL_38434F, 0.9 + n / 400.0)
-                if (b.flr[i] == 2 && n < 6) b.roofPixels[i] = COL_FFB347
+                val plateH = 5
+                val plateW = 10
+                val rowIdx = cy / plateH
+                val staggeredX = cx + (rowIdx % 2) * (plateW / 2)
+                val inPlateY = cy % plateH
+                val inPlateX = staggeredX % plateW
+
+                var shade = 0.94 + n / 750.0
+                if (inPlateY == 0) shade += 0.04
+                if (inPlateY == plateH - 1 || inPlateX == plateW - 1) shade -= 0.08
+
+                var col = hullBase
+
+                // Architectural exterior cladding per station/vessel type (zero interior room bleed)
+                when (b.type) {
+                    "liner" -> {
+                        val noseClip = (cx in 44..47) && (cy == 3 || cy == 16)
+                        if (noseClip) {
+                            b.roofPixels[i] = 0
+                            pF(b, cx, cy)
+                            if (b.sol[i] != 0) b.floorPixels[i] = COL_2A333F
+                            continue
+                        }
+                        if (cx >= 48 && cy in 7..12) {
+                            // Recessed east airlock boarding bay threshold
+                            col = if (cx == 48 && (cy == 7 || cy == 12)) COL_STRIPE_AMBER
+                            else if (cy in 9..10 && cx % 2 == 0) COL_53D9FF
+                            else COL_VESTIBULE
+                            shade = 1.0
+                        } else if (cx < 7) {
+                            // Stern fusion drive block
+                            col = if (cx in 1..4 && (cy in 6..7 || cy in 12..13)) COL_53D9FF else COL_HULL_LINER_STERN
+                            shade = if (cx == 0) 0.72 else shade
+                        } else if (cx in 7..47) {
+                            when {
+                                cy == 5 || cy == 14 -> { col = COL_STRIPE_BLUE; shade = 1.04 }
+                                cy == 6 || cy == 13 -> { col = COL_STRIPE_AMBER; shade = 0.96 }
+                                cy in 9..10 && cx in 10..44 -> {
+                                    col = if (cx % 4 == 0) COL_53D9FF else COL_HULL_SPINE
+                                    shade = if (cx % 4 == 0) 0.92 else 1.06
+                                }
+                            }
+                        }
+                    }
+                    "selene" -> {
+                        val isMouth = (cx <= 2 && cy in 23..27) || (cx >= 93 && cy in 23..27) || (cx in 47..48 && cy >= 43)
+                        if (isMouth) {
+                            col = if ((cx + cy) % 2 == 0) COL_53D9FF else COL_VESTIBULE
+                            shade = 0.95
+                        } else if (cy in 22..27) {
+                            // Raised dorsal spine truss & tramway stripes
+                            col = if (cy == 22 || cy == 27) COL_STRIPE_BLUE else COL_HULL_SPINE
+                            shade = if (cy in 24..25) 1.06 else shade
+                        } else if ((cx in 22..32 && cy in 6..12) || (cx in 62..72 && cy in 6..12) || (cx in 60..72 && cy in 31..37)) {
+                            // Symmetrical Kapton thermal-foil roof bays
+                            col = COL_FOIL_GOLD
+                            shade = if (cx % 2 == 0) 0.96 else 0.84
+                        } else if (hypot(cx - 48.0, cy - 12.0) < 4.5 || hypot(cx - 48.0, cy - 35.0) < 4.5) {
+                            // Roof sensor cupolas
+                            col = COL_HULL_SPINE
+                            shade = 1.12
+                        }
+                    }
+                    "vulcan" -> {
+                        val d1 = hypot(cx - 73.0, cy - 9.0)
+                        val d2 = hypot(cx - 73.0, cy - 35.0)
+                        when {
+                            d1 < 6.0 || d2 < 6.0 -> {
+                                val ty = if (d1 < 6.0) 9.0 else 35.0
+                                val dist = min(d1, d2) / 6.0
+                                val light = ((73.0 - cx) * 0.08 + (ty - cy) * 0.08)
+                                col = COL_HULL_SPINE
+                                shade = (1.18 - dist * 0.42 + light).coerceIn(0.65, 1.32)
+                            }
+                            cx <= 4 && cy in 14..27 -> {
+                                col = if (cy % 3 == 0) COL_STRIPE_AMBER else COL_VESTIBULE
+                                shade = 0.95
+                            }
+                            cx in 16..34 && cy in 12..31 -> {
+                                col = if (cx % 2 == 0) COL_COPPER_FIN else COL_HULL_LINER_STERN
+                                shade = 0.95
+                            }
+                            cx in 44..56 && cy in 18..25 -> {
+                                col = if (cy % 2 == 0) COL_C96F2F else COL_2C3642
+                                shade = 0.92
+                            }
+                        }
+                    }
+                    "mars", "earth" -> {
+                        val isPod = cy in 1..5 || cy in 14..18
+                        when {
+                            cx < 8 -> {
+                                col = if (cx <= 2 && cy in 6..13 && cy % 3 != 0) COL_C96F2F else COL_HULL_LINER_STERN
+                            }
+                            isPod -> {
+                                col = when {
+                                    cx in 11..16 -> COL_POD_RUST
+                                    cx in 25..30 -> COL_POD_TEAL
+                                    else -> COL_POD_OLIVE
+                                }
+                                if (cy == 3 || cy == 16) shade -= 0.10
+                            }
+                            cx >= 58 -> {
+                                val dist = hypot(cx - 65.0, cy - 9.5)
+                                col = if (dist in 4.2..5.5) COL_STRIPE_BLUE else COL_HULL_SPINE
+                            }
+                            cy in 8..11 -> {
+                                col = COL_HULL_SPINE
+                                if (cy == 9) shade += 0.08
+                            }
+                        }
+                    }
+                    "hab" -> {
+                        if ((cx <= 1 || cx >= 16) && cy in 6..8) {
+                            col = COL_VESTIBULE
+                            shade = 1.0
+                        } else if (cx in 4..13 && cy in 3..4) {
+                            col = COL_FOIL_GOLD
+                            shade = 1.04
+                        }
+                    }
+                    "lift" -> {
+                        if (cy < 9) {
+                            col = if (cy % 3 == 0) COL_STRIPE_AMBER else COL_HULL_SPINE
+                        } else if (hypot(cx - 9.5, cy - 15.0) in 2.2..3.6) {
+                            col = COL_53D9FF
+                            shade = 0.92
+                        }
+                    }
+                    "depot", "tycho" -> {
+                        val hangarEnd = if (b.type == "depot") 30 else 21
+                        if (cx > hangarEnd) {
+                            col = COL_6B6156
+                            shade = 0.92 + n / 600.0
+                        } else if (cy in 3..4 && cx in 4..(hangarEnd - 4)) {
+                            col = if (b.type == "depot") COL_4F8F5A else COL_COPPER_FIN
+                            shade = 1.05
+                        }
+                    }
+                }
+
+                // Exterior silhouette bevel depth (only against outer space, never against interior rooms!)
+                if (!occ(cx, cy - 1)) shade += 0.18
+                if (!occ(cx - 1, cy)) shade += 0.08
+                if (!occ(cx, cy + 1)) shade -= 0.22
+                if (!occ(cx + 1, cy)) shade -= 0.10
+
+                b.roofPixels[i] = sh(col, shade.coerceIn(0.58, 1.32))
             } else {
                 b.roofPixels[i] = 0
             }
             pF(b, cx, cy)
             if (b.sol[i] != 0) {
-                pR(b, cx, cy)
                 b.floorPixels[i] = COL_2A333F
             }
         }
@@ -535,6 +724,7 @@ private fun paintSt(b: Body, r: () -> Double) {
                     "market" -> if (cy % 4 == 1 && cx % 3 != 0) b.floorPixels[i] = if (n < 50) COL_8A6A2F else COL_1F6F8F
                     "bar" -> if (n < 8) b.floorPixels[i] = COL_C96F2F
                     "catalog" -> if (cy % 3 == 0 && cx % 2 == 0) b.floorPixels[i] = if (n < 40) COL_1F6F8F else COL_2F4F6F
+                    "intake" -> if (cy % 4 == 2 && cx % 3 == 1) b.floorPixels[i] = if (n < 45) COL_1F6F8F else COL_8A6A2F
                     "crew" -> if (cy % 4 == 2 && n < 60) b.floorPixels[i] = COL_6B5A3F
                     "home" -> if (n < 10) b.floorPixels[i] = if (n < 4) COL_4F8F5A else COL_5A4F6B
                     "cargo" -> if (n < 14) b.floorPixels[i] = if (n < 7) COL_8A6A2F else COL_5A5148
@@ -615,7 +805,7 @@ private fun mkSt(r: () -> Double, x: Double, y: Double, a: Double, gw: Int, gh: 
 fun mkSelene(r: () -> Double, th: Double): Body {
     val p = atPose(th, C.RS)
     val b = mkSt(r, p.x, p.y, p.a, 96, 46, C.TS, "SELENE HIGH", "selene", "selene")
-    b.tabs = listOf("market", "service", "crew", "yard", "catalog", "bar")
+    b.tabs = listOf("market", "service", "intake", "crew", "yard", "catalog", "bar")
     b.yard = listOf("wren")
     fill(b, 3, 3, 90, 40, 3)
     wall(b, 2, 2, 92, 42)
@@ -625,11 +815,12 @@ fun mkSelene(r: () -> Double, th: Double): Body {
     room(b, 58, 2, 19, 21, "bar", "THE TERMINATOR")
     room(b, 76, 2, 18, 21, "yard", "SHIPYARD")
     fill(b, 3, 23, 90, 5, 2)
-    room(b, 2, 28, 38, 16, "cargo", "CARGO HOLD")
+    room(b, 2, 28, 18, 16, "intake", "INTAKE OFFICE")
+    room(b, 19, 28, 21, 16, "cargo", "CARGO HOLD")
     room(b, 39, 28, 18, 16, "lift", "LIFT DOCK")
     room(b, 56, 28, 38, 16, "workshop", "WORKSHOP")
     for (x in intArrayOf(10, 30, 48, 66, 84)) doorH(b, x, 22, 3)
-    for (x in intArrayOf(20, 47, 74)) doorH(b, x, 28, 3)
+    for (x in intArrayOf(9, 28, 47, 74)) doorH(b, x, 28, 3)
     mouth(b, 47, 43, 2, 1)
     mouth(b, 2, 23, 1, 5)
     mouth(b, 93, 23, 1, 5)
@@ -646,6 +837,31 @@ fun mkSelene(r: () -> Double, th: Double): Body {
     b.liftDock = lc(b, 47.5, 37.0)
     b.cableTop = lc(b, 47.5, 44.5)
     paintSt(b, r)
+    return b
+}
+
+fun mkLiner(r: () -> Double, th: Double, rad: Double): Body {
+    val p = atPose(th, rad)
+    val b = mkSt(r, p.x, p.y, p.a, 54, 20, C.TS, "PSV MERIDIAN", "transit", "liner")
+    b.tabs = listOf("bar")
+    b.crewN = 6
+    block(b, 0, 5, 7, 10)
+    block(b, 0, 6, 1, 2, 0)
+    block(b, 0, 12, 1, 2, 0)
+    room(b, 7, 3, 18, 14, "home", "BERTH DECK · TRANSIT")
+    room(b, 24, 3, 24, 14, "bar", "PASSENGER GALLERY")
+    doorV(b, 24, 8, 4)
+    block(b, 48, 6, 5, 1)
+    block(b, 48, 13, 5, 1)
+    mouth(b, 47, 7, 6, 6)
+    port(b, 26, 3, -PI / 2.0)
+    port(b, 26, 16, PI / 2.0)
+    val engPos = lc(b, 3.0, 10.0)
+    b.lights.add(LightSource(engPos.x, engPos.y, PAL.cyan, 26.0, false))
+    val lockPos = lc(b, 50.0, 9.5)
+    b.lights.add(LightSource(lockPos.x, lockPos.y, PAL.cyan, 24.0, true))
+    paintSt(b, r)
+    b.econ = null
     return b
 }
 
@@ -720,8 +936,8 @@ fun mkHab(r: () -> Double, th: Double): Body {
     val b = mkSt(r, p.x, p.y, p.a, 18, 10, 3.0, "HAB 14", "rim", "hab")
     b.surf = true
     b.tabs = listOf("home")
-    b.crewN = 0
-    room(b, 1, 1, 16, 9, "home", "HAB 14 · YOUR BUNK")
+    b.crewN = 3
+    room(b, 1, 1, 16, 9, "home", "HAB 14 · SHARED ROOM 14B")
     doorV(b, 16, 6, 3)
     doorV(b, 1, 6, 3)
     val pos = lc(b, 9.0, 3.0)
@@ -868,15 +1084,17 @@ fun genWorld(seed: Int): WorldState {
     val depot = mkDepot(r, thDepot)
     val tycho = mkTycho(r, thTycho)
     val sel = mkSelene(r, T0)
+    val liner = mkLiner(r, T0 - (344.0 / C.RS), C.RS)
     val vul = mkRefinery(r, T0 + 0.3, C.RS + 70.0)
     val ares = mkTransfer(r, T0 - 0.42, C.RS + 130.0, "mars")
     val gaia = mkTransfer(r, T0 + 0.56, C.RS - 90.0, "earth")
-    W.stations.addAll(listOf(sel, vul, ares, gaia, depot, tycho, lift, hab))
+    W.stations.addAll(listOf(sel, liner, vul, ares, gaia, depot, tycho, lift, hab))
     SITES.hab = hab
     SITES.lift = lift
     SITES.depot = depot
     SITES.tycho = tycho
     SITES.sel = sel
+    SITES.liner = liner
     SITES.vul = vul
     SITES.ares = ares
     SITES.gaia = gaia

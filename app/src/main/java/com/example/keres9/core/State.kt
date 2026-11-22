@@ -143,6 +143,7 @@ class Body(
     var va: Double = 0.0
     val sol: IntArray = IntArray(gw * gh)
     val flr: IntArray = IntArray(gw * gh)
+    val roofMask: ByteArray = ByteArray(gw * gh)
     var sol0: IntArray? = null
     var flr0: IntArray? = null
     val dmg: MutableMap<Int, Double> = HashMap()
@@ -290,6 +291,7 @@ class Ship(
     var rail: Boolean = false
     var ghost: Boolean = false
     var leaving: Boolean = false
+    var lightOn: Boolean = true
 
     // Computed stats
     var mass: Double = 14.0
@@ -323,7 +325,8 @@ class SuitState(
     var beam: BeamInfo? = null,
     var hide: Boolean = false,
     var jet: Double = 0.0,
-    var fullT: Double = 0.0
+    var fullT: Double = 0.0,
+    var lightOn: Boolean = true
 )
 
 data class Pick(
@@ -666,6 +669,11 @@ class GameState {
     var cores: Int = 0
     var fuelWarn: Boolean = false
     var autoPaused: Boolean = false
+    var paperworkDone: Boolean = false
+    var bunkClaimed: Boolean = false
+    var docWaiver: Boolean = false
+    var docTelemetry: Boolean = false
+    var docZone: Boolean = false
 }
 
 class CameraState {

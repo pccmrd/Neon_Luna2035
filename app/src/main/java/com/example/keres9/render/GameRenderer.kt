@@ -39,6 +39,7 @@ import com.example.keres9.sim.camX
 import com.example.keres9.sim.camY
 import com.example.keres9.sim.scanOrg
 import com.example.keres9.sim.sprite
+import com.example.keres9.sim.storyAtOrPast
 import com.example.keres9.sim.tele
 import com.example.keres9.world.MOON
 import com.example.keres9.world.MOON_STEP
@@ -90,6 +91,8 @@ object GameRenderer {
 
     private var lightBmp: Bitmap? = null
     private var lightCanvas: Canvas? = null
+    private var roofLayerBmp: Bitmap? = null
+    private var roofLayerCanvas: Canvas? = null
 
     private val faceCache = HashMap<String, Bitmap>()
     private val entBodyCache = HashMap<Any, Pair<Double, Body?>>()
@@ -193,10 +196,17 @@ object GameRenderer {
         }
     }
 
+    private fun ensureRoofBuffer(w: Int, h: Int) {
+        if (w <= 0 || h <= 0) return
+        if (roofLayerBmp == null || roofLayerBmp!!.width != w || roofLayerBmp!!.height != h) {
+            roofLayerBmp?.recycle()
+            roofLayerBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            roofLayerCanvas = Canvas(roofLayerBmp!!)
+        }
+    }
+
     private fun inside(b: Body): Boolean {
         val f = GS.focus() ?: return false
-        val pl = GS.pl
-        if (pl != null && pl.dock != null && pl.dock?.b === b && GS.ev == null && pl.dock?.ty != "anchor") return true
         val c = ca(b, f.x, f.y) ?: return false
         return b.sol[c.i] == 0 && b.flr[c.i] > 0
     }
@@ -452,8 +462,111 @@ object GameRenderer {
         }
     }
 
-    private fun drawFloor(canvas: Canvas, b: Body) {
+    private fun drawStationProps(canvas: Canvas, b: Body) {
+        val bwWorld = b.gw * b.cs
+        val bhWorld = b.gh * b.cs
+        val cs = b.cs.toFloat()
+        for (rm in b.rooms) {
+            val rx = (rm.x * b.cs - bwWorld / 2.0).toFloat()
+            val ry = (rm.y * b.cs - bhWorld / 2.0).toFloat()
+            val rw = rm.w * cs
+            val rh = rm.h * cs
+            val x1 = rx + cs * 1.4f
+            val y1 = ry + cs * 1.4f
+            val x2 = rx + rw - cs * 1.4f
+            val y2 = ry + rh - cs * 1.4f
+            val mx = (rx + rx + rw) / 2f
+            val my = (ry + ry + rh) / 2f
+            when (rm.kind) {
+                "home" -> {
+                    // Shared room bunk beds along top wall + lockers + terminal table
+                    val cols = if (rm.w >= 14) 2 else 1
+                    for (cIdx in 0 until cols) {
+                        val bx = x1 + cIdx * cs * 6.0f
+                        pFill.color = parseHexColor("#2f4156")
+                        canvas.drawRect(bx, y1, bx + cs * 4.5f, y1 + cs * 2.1f, pFill)
+                        pFill.color = parseHexColor("#89a4c7")
+                        canvas.drawRect(bx + 0.6f, y1 + 0.5f, bx + cs * 1.4f, y1 + cs * 1.6f, pFill)
+                        pFill.color = parseHexColor("#5d7591")
+                        canvas.drawRect(bx + cs * 1.6f, y1 + 0.5f, bx + cs * 4.2f, y1 + cs * 1.7f, pFill)
+                    }
+                    pFill.color = parseHexColor("#6b5a3f")
+                    canvas.drawRect(x2 - cs * 3.0f, my - cs * 1.0f, x2 - cs * 0.4f, my + cs * 1.0f, pFill)
+                    pFill.color = PAL.amber
+                    canvas.drawRect(x2 - cs * 2.4f, my - cs * 0.4f, x2 - cs * 1.2f, my + cs * 0.4f, pFill)
+                }
+                "intake" -> {
+                    // Reception desk, biometric security arch, intake waiting bench
+                    pFill.color = parseHexColor("#25364a")
+                    canvas.drawRect(mx - cs * 3.5f, my - cs * 1.2f, mx + cs * 3.5f, my + cs * 0.8f, pFill)
+                    pFill.color = PAL.cyan
+                    canvas.drawRect(mx - cs * 2.2f, my - cs * 0.7f, mx - cs * 0.4f, my + cs * 0.2f, pFill)
+                    pFill.color = PAL.gold
+                    canvas.drawRect(mx + cs * 0.6f, my - cs * 0.6f, mx + cs * 2.5f, my + cs * 0.3f, pFill)
+                    pStroke.color = PAL.cyan
+                    pStroke.strokeWidth = 0.8f
+                    canvas.drawRect(x1 + cs * 0.4f, y1 + cs * 0.4f, x1 + cs * 2.4f, y1 + cs * 3.2f, pStroke)
+                    pFill.color = parseHexColor("#546a82")
+                    canvas.drawRect(x2 - cs * 4.5f, y2 - cs * 1.8f, x2 - cs * 0.4f, y2 - cs * 0.4f, pFill)
+                }
+                "crew" -> {
+                    // Briefing table & Liu's telemetry console
+                    pFill.color = parseHexColor("#4c3f30")
+                    canvas.drawRect(mx - cs * 3.2f, my - cs * 1.8f, mx + cs * 3.2f, my + cs * 1.8f, pFill)
+                    pStroke.color = PAL.amber
+                    pStroke.strokeWidth = 0.6f
+                    canvas.drawRect(mx - cs * 2.8f, my - cs * 1.4f, mx + cs * 2.8f, my + cs * 1.4f, pStroke)
+                    pFill.color = PAL.cyan
+                    canvas.drawRect(x1 + cs * 0.4f, y1 + cs * 0.3f, x1 + cs * 4.2f, y1 + cs * 1.1f, pFill)
+                }
+                "bar" -> {
+                    // Counter with amber light strip + lounge booths
+                    pFill.color = parseHexColor("#3a281d")
+                    canvas.drawRect(x1 + cs * 0.5f, y1 + cs * 0.6f, x2 - cs * 0.5f, y1 + cs * 2.2f, pFill)
+                    pFill.color = PAL.amber
+                    canvas.drawRect(x1 + cs * 0.6f, y1 + cs * 2.0f, x2 - cs * 0.6f, y1 + cs * 2.35f, pFill)
+                    for (t in 0..1) {
+                        val tx = mx + (t - 0.5f) * cs * 6.0f
+                        pFill.color = parseHexColor("#4b392e")
+                        canvas.drawCircle(tx, y2 - cs * 2.4f, cs * 1.1f, pFill)
+                    }
+                }
+                "catalog" -> {
+                    // Holo-chart table
+                    pFill.color = parseHexColor("#1d2b3b")
+                    canvas.drawCircle(mx, my, cs * 2.4f, pFill)
+                    pStroke.color = PAL.cyan
+                    pStroke.strokeWidth = 0.7f
+                    canvas.drawCircle(mx, my, cs * 1.9f, pStroke)
+                    canvas.drawCircle(mx, my, cs * 1.0f, pStroke)
+                }
+                "market", "cargo" -> {
+                    // Crates & exchange ticker console
+                    pFill.color = parseHexColor("#785e36")
+                    canvas.drawRect(x1 + cs * 0.4f, y1 + cs * 0.4f, x1 + cs * 2.6f, y1 + cs * 2.2f, pFill)
+                    pFill.color = parseHexColor("#4b6278")
+                    canvas.drawRect(x1 + cs * 3.0f, y1 + cs * 0.6f, x1 + cs * 5.0f, y1 + cs * 2.4f, pFill)
+                }
+                "workshop", "yard" -> {
+                    // Overhead gantry rails
+                    pStroke.color = parseHexColor("#7f8c9a")
+                    pStroke.strokeWidth = 0.9f
+                    canvas.drawLine(x1, my - cs * 1.8f, x2, my - cs * 1.8f, pStroke)
+                    canvas.drawLine(x1, my + cs * 1.8f, x2, my + cs * 1.8f, pStroke)
+                }
+                "lift" -> {
+                    // Cable shaft collar
+                    pStroke.color = PAL.cyan
+                    pStroke.strokeWidth = 0.8f
+                    canvas.drawCircle(mx, my, cs * 2.5f, pStroke)
+                }
+            }
+        }
+    }
+
+    private fun drawFloor(canvas: Canvas, b: Body, revealNear: Boolean) {
         val W = GS.W ?: return
+        if (b.kind == "station" && b.roofA >= 0.995 && !revealNear) return
         ensureBodyBitmaps(b)
         val w = (b.gw * b.cs).toFloat()
         val h = (b.gh * b.cs).toFloat()
@@ -462,13 +575,16 @@ object GameRenderer {
         canvas.rotate(Math.toDegrees(b.a).toFloat())
         rectF.set(-w / 2f, -h / 2f, w / 2f, h / 2f)
         b.floorBmp?.let { canvas.drawBitmap(it, null, rectF, pBmp) }
-        if (b.roofA < 0.85) {
-            val a = if (b.roofA < 0.5) 0.9 else 0.3
-            for (g in b.glow) {
-                drawGlowWorld(canvas, g.lx, g.ly, g.c, g.r, a)
-            }
+        if (b.kind == "station" && (b.roofA < 0.72 || revealNear)) {
+            drawStationProps(canvas, b)
         }
-        if (b.roofA < 0.9) {
+        val showSealedGlow = b.roofA < 0.68 || revealNear
+        for (g in b.glow) {
+            if (!g.leak && !showSealedGlow) continue
+            val a = if (b.roofA < 0.5 || revealNear) 0.9 else if (g.leak) 0.35 else 0.0
+            if (a > 0.0) drawGlowWorld(canvas, g.lx, g.ly, g.c, g.r, a)
+        }
+        if (b.roofA < 0.55 || revealNear) {
             for (cr in b.crew) {
                 val bob = (sin(W.time * 1.3 + cr.lx) * 0.3).toFloat()
                 pFill.color = cr.c
@@ -480,7 +596,217 @@ object GameRenderer {
         canvas.restore()
     }
 
-    private fun drawRoof(canvas: Canvas, b: Body) {
+    private fun drawStationExterior(canvas: Canvas, b: Body, w: Float, h: Float, extA: Double) {
+        val W = GS.W
+        val hw = w / 2f
+        val hh = h / 2f
+        val lineCol = when {
+            b.surf -> PAL.green
+            b.fac == "transit" -> PAL.ice
+            else -> PAL.cyan
+        }
+        val strobe = sin((W?.time ?: 0.0) * 3.5 + b.seed) > 0.35
+
+        when (b.type) {
+            "selene" -> {
+                // Consortium deep-blue photovoltaic solar wings on north & south gimbal booms
+                for (signY in floatArrayOf(-1f, 1f)) {
+                    val wingY = if (signY < 0f) -hh - 26f else hh + 6f
+                    val boomY = if (signY < 0f) -hh + 6f else hh - 6f
+                    for (sx in floatArrayOf(-hw * 0.68f, hw * 0.20f)) {
+                        pStroke.color = withAlpha(parseHexColor("#9fb4c8"), extA * 0.75)
+                        pStroke.strokeWidth = 2.0f
+                        canvas.drawLine(sx + 28f, boomY, sx + 28f, wingY + 10f, pStroke)
+
+                        pFill.color = withAlpha(parseHexColor("#142a44"), extA * 0.96)
+                        canvas.drawRect(sx, wingY, sx + 58f, wingY + 20f, pFill)
+
+                        pStroke.color = withAlpha(PAL.cyan, extA * 0.42)
+                        pStroke.strokeWidth = 0.75f
+                        for (g in 1..3) {
+                            val gx = sx + g * 14.5f
+                            canvas.drawLine(gx, wingY + 1f, gx, wingY + 19f, pStroke)
+                        }
+                        pStroke.color = withAlpha(PAL.gold, extA * 0.65)
+                        pStroke.strokeWidth = 1.1f
+                        canvas.drawLine(sx + 1f, wingY + 10f, sx + 57f, wingY + 10f, pStroke)
+
+                        pStroke.color = withAlpha(parseHexColor("#9eb4ca"), extA * 0.7)
+                        pStroke.strokeWidth = 0.9f
+                        canvas.drawRect(sx, wingY, sx + 58f, wingY + 20f, pStroke)
+                    }
+                }
+                // Hull rim highlight & central spine truss rails
+                pStroke.color = withAlpha(parseHexColor("#9db4cc"), extA * 0.45)
+                pStroke.strokeWidth = 1.1f
+                canvas.drawRect(-hw + 8f, -hh + 8f, hw - 8f, hh - 8f, pStroke)
+
+                pStroke.color = withAlpha(PAL.amber, extA * 0.55)
+                pStroke.strokeWidth = 1.0f
+                canvas.drawLine(-hw + 12f, -4f, hw - 12f, -4f, pStroke)
+                canvas.drawLine(-hw + 12f, 4f, hw - 12f, 4f, pStroke)
+
+                // Twin sensor cupola domes & sweeping radar arms (centered on hull bays, not rooms)
+                val sweep = ((W?.time ?: 0.0) * 1.4).toFloat()
+                for (cyCup in floatArrayOf(-44f, 48f)) {
+                    pFill.color = withAlpha(parseHexColor("#3a4e66"), extA * 0.95)
+                    canvas.drawCircle(0f, cyCup, 14f, pFill)
+                    pStroke.color = withAlpha(PAL.cyan, extA * 0.72)
+                    pStroke.strokeWidth = 1.0f
+                    canvas.drawCircle(0f, cyCup, 14f, pStroke)
+                    canvas.drawCircle(0f, cyCup, 7f, pStroke)
+                    canvas.drawLine(0f, cyCup, cos(sweep) * 12f, cyCup + sin(sweep) * 12f, pStroke)
+                }
+                // Docking collar brackets at west & east airlock mouths
+                pStroke.color = withAlpha(PAL.cyan, extA * 0.8)
+                pStroke.strokeWidth = 1.5f
+                canvas.drawLine(-hw + 8f, -10f, -hw + 8f, 10f, pStroke)
+                canvas.drawLine(hw - 8f, -10f, hw - 8f, 10f, pStroke)
+                if (strobe) {
+                    pFill.color = withAlpha(PAL.red, extA * 0.9)
+                    canvas.drawCircle(-hw + 10f, -hh + 10f, 2f, pFill)
+                    canvas.drawCircle(hw - 10f, -hh + 10f, 2f, pFill)
+                    pFill.color = withAlpha(PAL.green, extA * 0.9)
+                    canvas.drawCircle(-hw + 10f, hh - 10f, 2f, pFill)
+                    canvas.drawCircle(hw - 10f, hh - 10f, 2f, pFill)
+                }
+            }
+            "liner" -> {
+                // Sleek PSV MERIDIAN passenger liner carapace outline & chamfered nose
+                pStroke.color = withAlpha(parseHexColor("#c2d2e2"), extA * 0.75)
+                pStroke.strokeWidth = 1.2f
+                pathA.reset()
+                pathA.moveTo(-hw + 28f, -hh + 12f)
+                pathA.lineTo(hw - 36f, -hh + 12f)
+                pathA.lineTo(hw - 20f, -hh + 20f)
+                pathA.lineTo(hw - 20f, hh - 20f)
+                pathA.lineTo(hw - 36f, hh - 12f)
+                pathA.lineTo(-hw + 28f, hh - 12f)
+                pathA.close()
+                canvas.drawPath(pathA, pStroke)
+
+                // Twin glowing thermal radiator fins north & south
+                for (signY in floatArrayOf(-1f, 1f)) {
+                    val fy0 = if (signY < 0f) -hh - 17f else hh - 4f
+                    val fy1 = if (signY < 0f) -hh + 4f else hh + 17f
+                    pFill.color = withAlpha(parseHexColor("#1a2b3e"), extA * 0.96)
+                    canvas.drawRect(-hw * 0.34f, fy0, hw * 0.28f, fy1, pFill)
+                    pStroke.color = withAlpha(PAL.cyan, extA * 0.55)
+                    pStroke.strokeWidth = 0.8f
+                    for (gx in -32..24 step 14) {
+                        canvas.drawLine(gx.toFloat(), fy0 + 2f, gx.toFloat(), fy1 - 2f, pStroke)
+                    }
+                    pStroke.color = withAlpha(parseHexColor("#8fa8c2"), extA * 0.75)
+                    pStroke.strokeWidth = 1.0f
+                    canvas.drawRect(-hw * 0.34f, fy0, hw * 0.28f, fy1, pStroke)
+                }
+
+                // Consortium crest ring + forward observation bridge canopy blister
+                pStroke.color = withAlpha(PAL.gold, extA * 0.75)
+                pStroke.strokeWidth = 1.1f
+                canvas.drawCircle(-8f, 0f, 8.5f, pStroke)
+                pFill.color = withAlpha(parseHexColor("#174666"), extA * 0.95)
+                canvas.drawCircle(hw - 34f, 0f, 6.5f, pFill)
+                pStroke.color = withAlpha(PAL.cyan, extA * 0.85)
+                canvas.drawCircle(hw - 34f, 0f, 6.5f, pStroke)
+
+                // Twin stern fusion engine bells + idle ion glow
+                for (ey in floatArrayOf(-12f, 12f)) {
+                    pFill.color = withAlpha(parseHexColor("#3b4a5c"), extA * 0.95)
+                    canvas.drawRect(-hw - 3f, ey - 4.5f, -hw + 2f, ey + 4.5f, pFill)
+                    drawGlowWorld(canvas, -hw - 3.0, ey.toDouble(), PAL.cyan, 11.0, extA * 0.35)
+                }
+
+                // East airlock boarding gantry alignment stripes & wingtip strobes
+                pStroke.color = withAlpha(PAL.cyan, extA * 0.85)
+                pStroke.strokeWidth = 1.2f
+                canvas.drawLine(hw - 18f, -11f, hw, -11f, pStroke)
+                canvas.drawLine(hw - 18f, 11f, hw, 11f, pStroke)
+                if (strobe) {
+                    pFill.color = withAlpha(PAL.red, extA * 0.9)
+                    canvas.drawCircle(-hw * 0.04f, -hh - 16f, 1.8f, pFill)
+                    pFill.color = withAlpha(PAL.green, extA * 0.9)
+                    canvas.drawCircle(-hw * 0.04f, hh + 16f, 1.8f, pFill)
+                }
+            }
+            "vulcan" -> {
+                // Spherical cryo propellant tank collar rings & smelter heat-exchanger glow
+                for (cyTank in floatArrayOf(-52f, 52f)) {
+                    pStroke.color = withAlpha(parseHexColor("#b4c6d8"), extA * 0.8)
+                    pStroke.strokeWidth = 1.3f
+                    canvas.drawCircle(124f, cyTank, 23f, pStroke)
+                    pStroke.color = withAlpha(PAL.amber, extA * 0.55)
+                    canvas.drawLine(82f, cyTank, 101f, cyTank, pStroke)
+                }
+                pStroke.color = withAlpha(PAL.ember, extA * 0.65)
+                pStroke.strokeWidth = 1.1f
+                canvas.drawRect(-100f, -38f, -28f, 38f, pStroke)
+                drawGlowWorld(canvas, 32.0, 0.0, PAL.ember, 28.0, extA * 0.25)
+            }
+            "mars", "earth" -> {
+                // Interplanetary cycler dorsal pipe spine, hab ring & comms mast
+                val tint = if (b.type == "mars") PAL.ember else PAL.cyan
+                pStroke.color = withAlpha(parseHexColor("#a5b8cc"), extA * 0.7)
+                pStroke.strokeWidth = 1.2f
+                canvas.drawLine(-hw + 32f, -6f, hw - 52f, -6f, pStroke)
+                canvas.drawLine(-hw + 32f, 6f, hw - 52f, 6f, pStroke)
+                pStroke.color = withAlpha(tint, extA * 0.75)
+                canvas.drawCircle(hw - 36f, 0f, 18f, pStroke)
+                drawGlowWorld(canvas, -hw + 4.0, 0.0, tint, 18.0, extA * 0.28)
+            }
+            "hab" -> {
+                // Sintered lunar dome ribs + exterior warm skylight hood + whip comms antenna
+                pStroke.color = withAlpha(parseHexColor("#9c9386"), extA * 0.75)
+                pStroke.strokeWidth = 1.2f
+                canvas.drawRect(-hw + 3f, -hh + 3f, hw - 3f, hh - 3f, pStroke)
+                for (rx in floatArrayOf(-hw * 0.55f, 0f, hw * 0.55f)) {
+                    canvas.drawLine(rx, -hh + 3f, rx, hh - 3f, pStroke)
+                }
+                pFill.color = withAlpha(PAL.amber, extA * 0.42)
+                canvas.drawRect(-hw * 0.48f, -hh + 6f, hw * 0.48f, -hh + 11f, pFill)
+                pStroke.color = withAlpha(PAL.dim, extA * 0.8)
+                pStroke.strokeWidth = 0.9f
+                canvas.drawLine(hw - 6f, -hh + 3f, hw - 6f, -hh - 8f, pStroke)
+                if (strobe) {
+                    pFill.color = withAlpha(PAL.red, extA * 0.95)
+                    canvas.drawCircle(hw - 6f, -hh - 8f, 1.5f, pFill)
+                }
+            }
+            "lift" -> {
+                // Cable anchor pylons & illuminated elevator ring
+                pStroke.color = withAlpha(PAL.cyan, extA * 0.75)
+                pStroke.strokeWidth = 1.2f
+                canvas.drawCircle(0f, 15f, 10f, pStroke)
+                pStroke.color = withAlpha(parseHexColor("#9fb4c8"), extA * 0.75)
+                canvas.drawLine(-4.5f, -hh, -4.5f, -2f, pStroke)
+                canvas.drawLine(4.5f, -hh, 4.5f, -2f, pStroke)
+            }
+            "depot", "tycho" -> {
+                // Ribbed lunar hangar frame + surface landing pad floodlight brackets
+                pStroke.color = withAlpha(lineCol, extA * 0.65)
+                pStroke.strokeWidth = 1.1f
+                canvas.drawRect(-hw + 3f, -hh + 3f, -6f, hh - 3f, pStroke)
+                var rxRib = -hw + 12f
+                while (rxRib <= -14f) {
+                    canvas.drawLine(rxRib, -hh + 3f, rxRib, hh - 3f, pStroke)
+                    rxRib += 14f
+                }
+                pStroke.color = withAlpha(PAL.gold, extA * 0.7)
+                canvas.drawLine(6f, hh - 4f, hw - 4f, hh - 4f, pStroke)
+            }
+            else -> {
+                pFill.color = withAlpha(parseHexColor("#223042"), extA * 0.85)
+                canvas.drawRect(-hw * 0.35f, -hh - 14f, hw * 0.35f, -hh, pFill)
+                canvas.drawRect(-hw * 0.35f, hh, hw * 0.35f, hh + 14f, pFill)
+                pStroke.color = withAlpha(lineCol, extA * 0.55)
+                pStroke.strokeWidth = 0.9f
+                canvas.drawRect(-hw * 0.35f, -hh - 14f, hw * 0.35f, -hh, pStroke)
+                canvas.drawRect(-hw * 0.35f, hh, hw * 0.35f, hh + 14f, pStroke)
+            }
+        }
+    }
+
+    private fun drawRoof(canvas: Canvas, b: Body, includeBeacons: Boolean = true) {
         val W = GS.W ?: return
         ensureBodyBitmaps(b)
         val w = (b.gw * b.cs).toFloat()
@@ -492,6 +818,9 @@ object GameRenderer {
         rectF.set(-w / 2f, -h / 2f, w / 2f, h / 2f)
         b.roofBmp?.let { canvas.drawBitmap(it, null, rectF, pBmp) }
         pBmp.alpha = 255
+        if (b.kind == "station" && b.roofA > 0.25) {
+            drawStationExterior(canvas, b, w, h, cl((b.roofA - 0.25) / 0.75, 0.0, 1.0))
+        }
         if (b.veinOn) {
             val alpha = ((0.45 + 0.35 * sin(W.time * 3.0)) * 255.0).toInt()
             pFill.color = Color.argb(alpha, 255, 209, 102)
@@ -529,6 +858,13 @@ object GameRenderer {
         }
         canvas.restore()
 
+        if (includeBeacons) {
+            drawRoofBeacons(canvas, b, w)
+        }
+    }
+
+    private fun drawRoofBeacons(canvas: Canvas, b: Body, w: Float = (b.gw * b.cs).toFloat()) {
+        val W = GS.W ?: return
         if (b.roofA > 0.4 && b.kind == "station") {
             val bl = sin(W.time * 4.0) > 0.0
             val alpha = if (bl) 242.0 / 255.0 else 89.0 / 255.0
@@ -581,7 +917,7 @@ object GameRenderer {
             canvas.drawPath(pathA, pAdd)
         }
         rectF.set(-w / 2f, -h / 2f, w / 2f, h / 2f)
-        s.spr?.let { canvas.drawBitmap(it, null, rectF, pBmp) }
+        s.spr?.let { canvas.drawBitmap(it, null, rectF, pBmpSmooth) }
         if (s.gear && s.tailLand) {
             pStroke.color = if (s.gearOK) COL_LEGS else PAL.red
             pStroke.strokeWidth = 1.1f
@@ -668,14 +1004,6 @@ object GameRenderer {
         val up = atan2(y, x)
         canvas.save()
         canvas.translate(x.toFloat(), y.toFloat())
-        if (light) {
-            pAdd.shader = RadialGradient(0f, 0f, 110f, Color.argb(36, 255, 240, 200), Color.TRANSPARENT, Shader.TileMode.CLAMP)
-            rectF.set(-110f, -110f, 110f, 110f)
-            val startDeg = Math.toDegrees(a - 0.42).toFloat()
-            val sweepDeg = Math.toDegrees(0.84).toFloat()
-            canvas.drawArc(rectF, startDeg, sweepDeg, true, pAdd)
-            pAdd.shader = null
-        }
         if (grounded) {
             canvas.rotate(Math.toDegrees(up + PI / 2.0).toFloat())
             val ph = (sin(walk * 9.0) * 0.6).toFloat()
@@ -687,6 +1015,10 @@ object GameRenderer {
             pFill.color = PAL.cyan
             val vx = if (face > 0f) 0f else -1f
             canvas.drawRect(vx, -4.1f, vx + 1f, -3.1f, pFill)
+            if (light) {
+                pFill.color = COL_JET_STERN
+                canvas.drawRect(vx + 0.2f, -4.7f, vx + 0.9f, -4.2f, pFill)
+            }
             pFill.color = COL_SUIT_PACK
             val px = -face * 1.3f - (if (face > 0f) 1f else 0f)
             canvas.drawRect(px, -2.6f, px + 1f, 0f, pFill)
@@ -701,6 +1033,10 @@ object GameRenderer {
             canvas.drawRect(-2.6f, -1.2f, -1.6f, 1.2f, pFill)
             pFill.color = PAL.cyan
             canvas.drawRect(0.6f, -1.0f, 2.0f, 0.6f, pFill)
+            if (light) {
+                pFill.color = COL_JET_STERN
+                canvas.drawRect(1.7f, -0.6f, 2.4f, 0.6f, pFill)
+            }
             pFill.color = col
             canvas.drawRect(-1.2f, 1.4f, -0.2f, 2.8f, pFill)
             canvas.drawRect(0.4f, 1.4f, 1.4f, 2.8f, pFill)
@@ -717,7 +1053,7 @@ object GameRenderer {
 
     private fun drawEVA(canvas: Canvas, e: SuitState) {
         if (e.dead || e.hide) return
-        suitFig(canvas, e.x, e.y, e.a, PAL.amber, e.bob, e.grounded > 0.0 && tele(e).g > 0.4, true, e.beam)
+        suitFig(canvas, e.x, e.y, e.a, PAL.amber, e.bob, e.grounded > 0.0 && tele(e).g > 0.4, e.lightOn, e.beam)
         pStroke.color = if (e.suit > 30.0) PAL.cyan else PAL.red
         pStroke.strokeWidth = (1.2 / k).toFloat()
         rectF.set(e.x.toFloat() - 6f, e.y.toFloat() - 6f, e.x.toFloat() + 6f, e.y.toFloat() + 6f)
@@ -734,7 +1070,7 @@ object GameRenderer {
         val W = GS.W ?: return
         for (m in W.suits) {
             if (m.st == "in") continue
-            suitFig(canvas, m.x, m.y, m.a, m.c, W.time, false, false, m.beam)
+            suitFig(canvas, m.x, m.y, m.a, m.c, W.time, false, true, m.beam)
         }
     }
 
@@ -901,23 +1237,152 @@ object GameRenderer {
         pLightCut.shader = null
     }
 
-    private fun cutC(lc: Canvas, x: Float, y: Float, ang: Double, r: Float, half: Double, a: Double) {
-        if (r <= 1f) return
-        lc.save()
-        lc.translate(x, y)
-        lc.rotate(Math.toDegrees(ang).toFloat())
-        val a0 = (cl(a, 0.0, 1.0) * 255.0).toInt()
-        val a1 = (cl(a * 0.6, 0.0, 1.0) * 255.0).toInt()
+    private data class CastBeam(val origin: Vec2, val pts: List<Vec2>, val hits: List<Vec2>, val range: Double)
+
+    private fun castDissolveFan(
+        wx: Double,
+        wy: Double,
+        ang: Double,
+        range: Double,
+        half: Double,
+        rays: Int,
+        stepBackWall: Double = 1.2
+    ): CastBeam {
+        val bodies = near(wx, wy, range + 16.0)
+        val pts = ArrayList<Vec2>(rays + 1)
+        for (i in 0..rays) {
+            val ra = ang - half + (i.toDouble() / rays) * (half * 2.0)
+            val dx = cos(ra)
+            val dy = sin(ra)
+            var d = 1.5
+            var hx = wx + dx * range
+            var hy0 = wy + dy * range
+            var hit = false
+            while (d < range) {
+                val px = wx + dx * d
+                val py = wy + dy * d
+                for (b in bodies) {
+                    val c = ca(b, px, py)
+                    if (c != null && b.sol[c.i] != 0) {
+                        val bd = max(0.0, d - stepBackWall)
+                        hx = wx + dx * bd
+                        hy0 = wy + dy * bd
+                        hit = true
+                        break
+                    }
+                }
+                if (hit) break
+                d += 1.4
+            }
+            pts.add(w2s(hx, hy0))
+        }
+        return CastBeam(w2s(wx, wy), pts, emptyList(), range)
+    }
+
+    private fun cutDissolveFan(lc: Canvas, beam: CastBeam, stops: FloatArray, alphas: IntArray) {
+        val rPx = (beam.range * k).toFloat()
+        if (rPx <= 1f || beam.pts.size < 2) return
+        val ox0 = beam.origin.x.toFloat()
+        val oy0 = beam.origin.y.toFloat()
+        pathA.reset()
+        pathA.moveTo(ox0, oy0)
+        for (pt in beam.pts) pathA.lineTo(pt.x.toFloat(), pt.y.toFloat())
+        pathA.close()
+        val cols = IntArray(alphas.size) { idx ->
+            val a = alphas[idx].coerceIn(0, 255)
+            if (a == 0) Color.TRANSPARENT else Color.argb(a, 0, 0, 0)
+        }
+        pLightCut.shader = RadialGradient(ox0, oy0, rPx, cols, stops, Shader.TileMode.CLAMP)
+        lc.drawPath(pathA, pLightCut)
+        pLightCut.shader = null
+    }
+
+    private fun castLightCone(wx: Double, wy: Double, ang: Double, range: Double, half: Double, rays: Int = 15): CastBeam {
+        val bodies = near(wx, wy, range + 16.0)
+        val pts = ArrayList<Vec2>(rays + 1)
+        val hits = ArrayList<Vec2>(4)
+        for (i in 0..rays) {
+            val ra = ang - half + (i.toDouble() / rays) * (half * 2.0)
+            val dx = cos(ra)
+            val dy = sin(ra)
+            var d = 2.0
+            var hx = wx + dx * range
+            var hy0 = wy + dy * range
+            var hit = false
+            while (d < range) {
+                val px = wx + dx * d
+                val py = wy + dy * d
+                for (b in bodies) {
+                    val c = ca(b, px, py)
+                    if (c != null && b.sol[c.i] != 0) {
+                        hx = px
+                        hy0 = py
+                        hit = true
+                        break
+                    }
+                }
+                if (hit) break
+                d += 1.8
+            }
+            val sp = w2s(hx, hy0)
+            pts.add(sp)
+            if (hit && i % 3 == 0) hits.add(sp)
+        }
+        return CastBeam(w2s(wx, wy), pts, hits, range)
+    }
+
+    private fun cutCastCone(lc: Canvas, beam: CastBeam, colStrength: Double) {
+        val rPx = (beam.range * k).toFloat()
+        if (rPx <= 1f || beam.pts.size < 2) return
+        val ox0 = beam.origin.x.toFloat()
+        val oy0 = beam.origin.y.toFloat()
+        pathA.reset()
+        pathA.moveTo(ox0, oy0)
+        for (pt in beam.pts) pathA.lineTo(pt.x.toFloat(), pt.y.toFloat())
+        pathA.close()
+        val a0 = (cl(colStrength, 0.0, 1.0) * 255.0).toInt()
+        val a1 = (cl(colStrength * 0.72, 0.0, 1.0) * 255.0).toInt()
         pLightCut.shader = RadialGradient(
-            0f, 0f, r,
+            ox0, oy0, rPx,
             intArrayOf(Color.argb(a0, 0, 0, 0), Color.argb(a1, 0, 0, 0), Color.TRANSPARENT),
-            floatArrayOf(0f, 0.7f, 1f),
+            floatArrayOf(0f, 0.65f, 1f),
             Shader.TileMode.CLAMP
         )
-        rectF.set(-r, -r, r, r)
-        lc.drawArc(rectF, Math.toDegrees(-half).toFloat(), Math.toDegrees(half * 2.0).toFloat(), true, pLightCut)
+        lc.drawPath(pathA, pLightCut)
         pLightCut.shader = null
-        lc.restore()
+    }
+
+    private fun drawAdditiveCone(canvas: Canvas, beam: CastBeam, beamCol: Int, alphaCore: Double, bounceR: Double) {
+        val rPx = (beam.range * k).toFloat()
+        if (rPx <= 1f || beam.pts.size < 2) return
+        val ox0 = beam.origin.x.toFloat()
+        val oy0 = beam.origin.y.toFloat()
+        pathA.reset()
+        pathA.moveTo(ox0, oy0)
+        for (pt in beam.pts) pathA.lineTo(pt.x.toFloat(), pt.y.toFloat())
+        pathA.close()
+        pAdd.shader = RadialGradient(
+            ox0, oy0, rPx,
+            intArrayOf(withAlpha(beamCol, alphaCore), withAlpha(beamCol, alphaCore * 0.45), Color.TRANSPARENT),
+            floatArrayOf(0f, 0.55f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        canvas.drawPath(pathA, pAdd)
+        pAdd.shader = null
+
+        val br = (bounceR * k).toFloat()
+        if (br > 2f && beam.hits.isNotEmpty()) {
+            for (hp in beam.hits) {
+                val hx = hp.x.toFloat()
+                val hy0 = hp.y.toFloat()
+                pAdd.shader = RadialGradient(
+                    hx, hy0, br,
+                    withAlpha(beamCol, alphaCore * 1.1), Color.TRANSPARENT, Shader.TileMode.CLAMP
+                )
+                canvas.drawCircle(hx, hy0, br, pAdd)
+            }
+            pAdd.shader = null
+        }
     }
 
     private fun lighting(canvas: Canvas) {
@@ -925,58 +1390,80 @@ object GameRenderer {
         val f = GS.focus() ?: return
         val pl = GS.pl
         val ev = GS.ev
-        val cam = GS.cam
         val insBody = entBody(f, f.x, f.y)
-            ?: if (pl != null && pl.dock != null && ev == null && pl.dock?.ty != "anchor" && pl.dock?.ty != "ground") pl.dock?.b else null
         val ins = insBody != null
         val t = tele(f)
         val night = if (t.alt < 400.0) (1.0 - daylight(atan2(f.y, f.x), W.time)) * cl(1.0 - t.alt / 400.0, 0.0, 1.0) else 0.0
-        val baseDark = if (ev != null && !ev.hide) (if (ins) 0.5 else 0.12) else if (ins) 0.45 else 0.0
-        val dark = max(baseDark, night * 0.55)
-        if (dark < 0.03) return
+        val baseDark = when {
+            insBody?.kind == "rock" -> 0.92
+            insBody?.kind == "station" -> 0.68
+            ev != null && !ev.hide -> 0.22
+            else -> 0.0
+        }
+        val dark = max(baseDark, night * 0.62)
 
-        ensureLightBuffer(bw, bh)
-        val lc = lightCanvas ?: return
-        val lb = lightBmp ?: return
-        lc.drawColor(Color.argb((dark * 255.0).toInt(), 2, 4, 10), PorterDuff.Mode.SRC)
+        val playerShipCone = if (pl != null && !pl.dead && ev == null && pl.lightOn) {
+            castLightCone(pl.x + cos(pl.a) * pl.nose, pl.y + sin(pl.a) * pl.nose, pl.a, 215.0, 0.34, 15)
+        } else null
+        val playerEvaCone = if (ev != null && !ev.dead && !ev.hide && ev.lightOn) {
+            castLightCone(ev.x, ev.y, ev.a, 160.0, 0.44, 15)
+        } else null
 
-        val rot = -cam.rot
-        for (b in W.bodies) {
-            if (abs(b.x - camX()) > b.rad + 900.0 || abs(b.y - camY()) > b.rad + 900.0) continue
-            val c = cos(b.a)
-            val s = sin(b.a)
-            for (L in b.lights) {
-                val p = w2s(b.x + L.lx * c - L.ly * s, b.y + L.lx * s + L.ly * c)
-                val flFactor = if (L.fl) 0.55 + 0.45 * sin(W.time * 9.0 + L.lx) else 1.0
-                cutL(lc, p.x.toFloat(), p.y.toFloat(), (L.r * k).toFloat(), min(0.95, (if (b.roofA < 0.6) 0.9 else 0.4) * flFactor))
+        if (dark >= 0.03) {
+            ensureLightBuffer(bw, bh)
+            val lc = lightCanvas ?: return
+            val lb = lightBmp ?: return
+            lc.drawColor(Color.argb((dark * 255.0).toInt(), 2, 4, 10), PorterDuff.Mode.SRC)
+
+            for (b in W.bodies) {
+                if (abs(b.x - camX()) > b.rad + 900.0 || abs(b.y - camY()) > b.rad + 900.0) continue
+                val c = cos(b.a)
+                val s = sin(b.a)
+                val bodyOpen = b.roofA < 0.72
+                for (L in b.lights) {
+                    if (!bodyOpen && !L.fl) continue
+                    val p = w2s(b.x + L.lx * c - L.ly * s, b.y + L.lx * s + L.ly * c)
+                    val flFactor = if (L.fl) 0.55 + 0.45 * sin(W.time * 9.0 + L.lx) else 1.0
+                    val strength = if (bodyOpen) 0.95 else 0.28
+                    cutL(lc, p.x.toFloat(), p.y.toFloat(), (L.r * k).toFloat(), min(0.95, strength * flFactor))
+                }
             }
-        }
-        if (pl != null && !pl.dead) {
-            val p = w2s(pl.x + cos(pl.a) * pl.nose, pl.y + sin(pl.a) * pl.nose)
-            cutC(lc, p.x.toFloat(), p.y.toFloat(), pl.a + rot, (190.0 * k).toFloat(), 0.32, 0.8)
-            cutL(lc, p.x.toFloat(), p.y.toFloat(), (26.0 * k).toFloat(), 0.5)
-        }
-        if (ev != null && !ev.dead && !ev.hide) {
-            val p = w2s(ev.x, ev.y)
-            cutC(lc, p.x.toFloat(), p.y.toFloat(), ev.a + rot, (135.0 * k).toFloat(), 0.44, 0.98)
-            cutL(lc, p.x.toFloat(), p.y.toFloat(), (24.0 * k).toFloat(), 0.7)
-        }
-        for (s in W.ships) {
-            val bm = s.beam
-            if (bm != null && !s.dead) {
-                val p = w2s(bm.x1, bm.y1)
-                cutL(lc, p.x.toFloat(), p.y.toFloat(), (34.0 * k).toFloat(), 0.7)
+            if (pl != null && !pl.dead && ev == null) {
+                playerShipCone?.let { cutCastCone(lc, it, 0.96) }
+                val p = w2s(pl.x, pl.y)
+                cutL(lc, p.x.toFloat(), p.y.toFloat(), (28.0 * k).toFloat(), 0.6)
             }
-            if (!s.dead && s.thr > 0.1) {
-                val p = w2s(s.x, s.y)
-                cutL(lc, p.x.toFloat(), p.y.toFloat(), (60.0 * k * s.thr).toFloat(), 0.6)
+            if (ev != null && !ev.dead && !ev.hide) {
+                playerEvaCone?.let { cutCastCone(lc, it, 1.0) }
+                val p = w2s(ev.x, ev.y)
+                cutL(lc, p.x.toFloat(), p.y.toFloat(), (26.0 * k).toFloat(), 0.78)
             }
+            for (m in W.suits) {
+                if (m.st == "in") continue
+                val p = w2s(m.x, m.y)
+                cutL(lc, p.x.toFloat(), p.y.toFloat(), (42.0 * k).toFloat(), 0.65)
+            }
+            for (s in W.ships) {
+                val bm = s.beam
+                if (bm != null && !s.dead) {
+                    val p = w2s(bm.x1, bm.y1)
+                    cutL(lc, p.x.toFloat(), p.y.toFloat(), (38.0 * k).toFloat(), 0.75)
+                }
+                if (!s.dead && s.thr > 0.1) {
+                    val p = w2s(s.x, s.y)
+                    cutL(lc, p.x.toFloat(), p.y.toFloat(), (60.0 * k * s.thr).toFloat(), 0.6)
+                }
+            }
+            W.lift?.cars?.forEach { car ->
+                val p = w2s(car.x, car.y)
+                cutL(lc, p.x.toFloat(), p.y.toFloat(), (18.0 * k).toFloat(), 0.6)
+            }
+            canvas.drawBitmap(lb, 0f, 0f, pBmp)
         }
-        W.lift?.cars?.forEach { car ->
-            val p = w2s(car.x, car.y)
-            cutL(lc, p.x.toFloat(), p.y.toFloat(), (18.0 * k).toFloat(), 0.6)
-        }
-        canvas.drawBitmap(lb, 0f, 0f, pBmp)
+
+        val washAlpha = if (ins) 0.22 else 0.11
+        playerShipCone?.let { drawAdditiveCone(canvas, it, COL_JET_STERN, washAlpha, 22.0) }
+        playerEvaCone?.let { drawAdditiveCone(canvas, it, COL_JET_STERN, washAlpha * 1.1, 16.0) }
     }
 
     private fun hudFontSize(px: Float): Float = max(8f, px * rs)
@@ -1214,8 +1701,19 @@ object GameRenderer {
         if (c != null && c.state == "site" && ev != null && !ev.hide) {
             arrow(canvas, c.ship.x, c.ship.y, PAL.amber, "MULE-3")
         }
-        if (ev != null && !ev.hide && G.tier == 1 && G.story <= 1) {
-            arrow(canvas, SITES.lift.x, SITES.lift.y, PAL.cyan, "LIFT")
+        if (ev != null && !ev.hide && G.tier == 1) {
+            val sid = com.example.keres9.sim.storyObj().id
+            when (sid) {
+                "arrive" -> arrow(canvas, SITES.sel.x - 160.0, SITES.sel.y, PAL.cyan, "SELENE")
+                "intake" -> arrow(canvas, SITES.sel.x - 140.0, SITES.sel.y + 45.0, PAL.gold, "INTAKE")
+                "bunk" -> {
+                    val onSurf = altAt(ev.x, ev.y) < 300.0
+                    if (onSurf) arrow(canvas, SITES.hab.x, SITES.hab.y, PAL.green, "HAB 14B")
+                    else arrow(canvas, SITES.sel.x, SITES.sel.y + 40.0, PAL.cyan, "LIFT ▼")
+                }
+                "commute" -> arrow(canvas, SITES.lift.x, SITES.lift.y, PAL.cyan, "LIFT ▲")
+                "sign" -> arrow(canvas, SITES.sel.x - 140.0, SITES.sel.y - 45.0, PAL.amber, "CREW")
+            }
         }
         pText.textAlign = Paint.Align.LEFT
     }
@@ -1312,7 +1810,8 @@ object GameRenderer {
         pText.textSize = hudFontSize(9f)
         pText.color = if (ev.suit < 30.0) PAL.red else PAL.text
         val stormTag = if (W.flare?.on == true) "   ☢ STORM" else ""
-        canvas.drawText("AIR ${ev.suit.roundToInt()}%   SACK $n/$maxSack$stormTag", x, y + 3f * rs, pText)
+        val lampTag = if (ev.lightOn) "   LAMP ON" else "   LAMP OFF"
+        canvas.drawText("AIR ${ev.suit.roundToInt()}%   SACK $n/$maxSack$lampTag$stormTag", x, y + 3f * rs, pText)
     }
 
     fun renderWorld(canvas: Canvas, widthPx: Float, heightPx: Float, density: Float, dt: Double) {
@@ -1337,15 +1836,37 @@ object GameRenderer {
         val cy = camY()
         val vis = ArrayList<Body>(16)
         for (b in W.bodies) {
-            if (b.hidden && !(b.orphan && G.story >= 9)) continue
+            if (b.hidden && !(b.orphan && storyAtOrPast("lander"))) continue
             if (abs(b.x - cx) < b.rad + hw + 60.0 && abs(b.y - cy) < b.rad + hw + 60.0) {
                 vis.add(b)
             }
         }
         val fadeK = 1.0 - exp(-5.0 * dt)
         for (b in vis) {
-            b.roofA = lp(b.roofA, if (inside(b)) 0.13 else 1.0, fadeK)
+            b.roofA = lp(b.roofA, if (inside(b)) 0.06 else 1.0, fadeK)
         }
+
+        val pl = GS.pl
+        val f = GS.focus()
+        val evVisible = ev != null && !ev.dead && !ev.hide
+        val viewX = when {
+            evVisible -> ev!!.x
+            pl != null && !pl.dead -> pl.x
+            else -> f?.x ?: cx
+        }
+        val viewY = when {
+            evVisible -> ev!!.y
+            pl != null && !pl.dead -> pl.y
+            else -> f?.y ?: cy
+        }
+        val viewAng = when {
+            evVisible -> ev!!.a
+            pl != null && !pl.dead -> pl.a
+            else -> 0.0
+        }
+        val coneRange = if (evVisible) 128.0 else 150.0
+        val proxRange = if (evVisible) 46.0 else 58.0
+        val hasDissolveTarget = f != null && vis.any { b -> hy(b.x - viewX, b.y - viewY) < b.rad + coneRange }
 
         canvas.save()
         canvas.translate(ox.toFloat(), oy.toFloat())
@@ -1370,15 +1891,60 @@ object GameRenderer {
                 if (entBody(s, s.x, s.y) != null) shipsIn.add(s) else shipsOut.add(s)
             }
         }
-        val evVisible = ev != null && !ev.dead && !ev.hide
         val evIn = evVisible && entBody(ev!!, ev.x, ev.y) != null
 
-        for (b in vis) drawFloor(canvas, b)
+        for (b in vis) {
+            val revealNear = f != null && hy(b.x - viewX, b.y - viewY) < b.rad + coneRange
+            drawFloor(canvas, b, revealNear)
+        }
         for (s in shipsIn) drawShip(canvas, s)
         if (evVisible && evIn) drawEVA(canvas, ev!!)
         for (p in picksIn) drawPick(canvas, p)
 
-        for (b in vis) drawRoof(canvas, b)
+        if (hasDissolveTarget) {
+            ensureRoofBuffer(bw, bh)
+            val rc = roofLayerCanvas
+            val rb = roofLayerBmp
+            if (rc != null && rb != null) {
+                rc.drawColor(0, PorterDuff.Mode.CLEAR)
+                rc.save()
+                rc.translate(ox.toFloat(), oy.toFloat())
+                rc.scale(k.toFloat(), k.toFloat())
+                rc.rotate(Math.toDegrees(-cam.rot).toFloat())
+                rc.translate((-cx).toFloat(), (-cy).toFloat())
+                for (b in vis) drawRoof(rc, b, includeBeacons = false)
+                rc.restore()
+
+                val viewCone = castDissolveFan(viewX, viewY, viewAng, coneRange, 0.58, 44, stepBackWall = 1.2)
+                cutDissolveFan(
+                    rc,
+                    viewCone,
+                    stops = floatArrayOf(0f, 0.48f, 0.78f, 1f),
+                    alphas = intArrayOf(242, 190, 95, 0)
+                )
+                val proxFan = castDissolveFan(viewX, viewY, viewAng, proxRange, PI, 48, stepBackWall = 1.2)
+                cutDissolveFan(
+                    rc,
+                    proxFan,
+                    stops = floatArrayOf(0f, 0.52f, 1f),
+                    alphas = intArrayOf(232, 138, 0)
+                )
+
+                canvas.restore()
+                canvas.drawBitmap(rb, 0f, 0f, pBmp)
+                canvas.save()
+                canvas.translate(ox.toFloat(), oy.toFloat())
+                canvas.scale(k.toFloat(), k.toFloat())
+                canvas.rotate(Math.toDegrees(-cam.rot).toFloat())
+                canvas.translate((-cx).toFloat(), (-cy).toFloat())
+                for (b in vis) drawRoofBeacons(canvas, b)
+            } else {
+                for (b in vis) drawRoof(canvas, b)
+            }
+        } else {
+            for (b in vis) drawRoof(canvas, b)
+        }
+
         for (s in shipsOut) drawShip(canvas, s)
         if (evVisible && !evIn) drawEVA(canvas, ev!!)
         for (p in picksOut) drawPick(canvas, p)
@@ -1456,7 +2022,7 @@ object GameRenderer {
         }
 
         for (a in W.rocks) {
-            if (a.hidden && !(a.orphan && G.story >= 9)) continue
+            if (a.hidden && !(a.orphan && storyAtOrPast("lander"))) continue
             val d = a.cham.any { it.disc }
             pFill.color = when {
                 a.orphan -> PAL.helion

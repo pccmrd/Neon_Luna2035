@@ -10,20 +10,20 @@ import com.example.keres9.core.rand
 import com.example.keres9.world.SITES
 
 private val LINES = listOf(
-    "KERES-9 ran the catalog for six years. One solar storm and it forgot every rock the haul engines ever parked. Now we survey by hand.",
-    "Helion Minerals were staking bodies before the catalog went dark. Funny how their transponders are on rocks nobody officially owns.",
-    "The haul engines never stopped. Every few minutes another one parks something new in the band, and nobody knows what it is.",
+    "After the 2029 Compute Accords carved up Earth orbital slots, the Eastern Cable Consortium sank its capital into Shackleton Lift while the Western Syndicate automated belt haulage.",
+    "Everyone thought agentic AI in 2026 meant endless abundance. Instead two conglomerates own the orbital haul fleets and humans sign bunk-bonds to cut ore with hand lasers.",
+    "KERES-9 was the Geneva neutral registry keeping Eastern tether tariffs from choking Western claim-jumpers. The day its logs went dark, both blocs blamed the sun.",
+    "Helion Minerals' autonomous drones were staking rocks long before the blackout. Funny how Syndicate transponders sit on bodies nobody officially mined.",
     "Ice down at the Depot sells for twice what it does up here. If you had a lander, you would be rich by Thursday.",
-    "Lu has been running crews since the lift opened. She has never lost a hand. She has docked a few shares, though.",
-    "Comets come in venting. Cut into one and you get volatiles the Mars ships pay through the nose for.",
-    "The cable is the only thing on the Moon that hangs straight. Everything else falls."
+    "Manager Liu has been running shifts since the cable anchored. Never lost a hand to vacuum — though she'll dock a quarter share if you miss the horn.",
+    "Comets come in venting. Cut past the frozen crust and shine your beam deep inside — Mars transit pays well for clean volatiles.",
+    "The cable is the only thing on the Moon that hangs straight. Everything else obeys orbital mechanics."
 )
 
 private val RUMOR_GOODS = listOf("ice", "fe", "vol", "pgm")
 
 fun rumor(): String {
     val W = GS.W
-    val G = GS.G
     val rf = ::rand
     val r = rf()
     if (r < 0.3 && W != null) {
@@ -48,7 +48,7 @@ fun rumor(): String {
             return "Drone pilots keep pinging something odd inside ${c.b.name} — $what About ${fm(hy(c.x - SITES.sel.x, c.y - SITES.sel.y))} m from SELENE HIGH."
         }
     }
-    if (r < 0.6 && G != null && G.story >= 9 && W?.orphan != null) {
+    if (r < 0.6 && storyAtOrPast("lander") && W?.orphan != null) {
         return "Everyone is talking about the Orphan. Half a kilometre of metal and a Helion beacon nobody admits to."
     }
     return pk(rf, LINES)

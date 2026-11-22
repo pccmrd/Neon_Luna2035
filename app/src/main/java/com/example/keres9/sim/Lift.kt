@@ -92,18 +92,18 @@ fun ride(end: String, withPlayer: Boolean): Boolean {
 }
 
 private val CHAT_UP = listOf(
-    "LIFT PA: Selene Lift thanks you for riding the only straight line in cislunar space.",
-    "LIFT PA: Ninety tonnes of counterweight are passing you on the other track. Please wave.",
-    "RADIO · Catalog Office: still no word on KERES-9. Bodies in the band are UNCATALOGUED until surveyed.",
-    "RADIO · Crew Office: MULE shuttles lift every few minutes. Hands wanted. Bring your own suit.",
-    "LIFT PA: Gravity drops off as you climb. At the top it is balanced by the spin — you will float.",
-    "RADIO · Traffic: ARES TRANSIT is loading water for Mars. GAIA RETURN wants platinum for Earth."
+    "LIFT PA: Eastern Cable Consortium welcomes cleared hands to the only straight line in cislunar space.",
+    "LIFT PA: Ninety tonnes of basalt counterweight are passing you on the opposite strand. Please wave.",
+    "RADIO · Catalog Office: still no telemetry from KERES-9. Uncharted rocks remain outside both blocs' claim zones.",
+    "RADIO · Manager Liu: MULE-3 lifts every few minutes. Bunked hands get priority berths; late arrivals dock 25%.",
+    "LIFT PA: After the 2029 Accords partitioned Earth-lunar orbits, South Pole cable power became the last unionized foothold.",
+    "RADIO · Traffic: ARES TRANSIT is buying ice for Mars; Helion drones keep skimming unregistered platinum off outer rocks."
 )
 
 private val CHAT_DOWN = listOf(
-    "LIFT PA: Descending to Shackleton Rim. Gravity returns gradually. Mind your knees.",
-    "RADIO · Rim Colony: water rationing continues. The Depot pays well for ice landed on the surface.",
-    "LIFT PA: Surface temperature in sunlight plus 110, in shadow minus 170. Suit seals, please."
+    "LIFT PA: Descending to Shackleton Rim. Lunar gravity returns at 1.6 m/s². Mind your knees.",
+    "RADIO · Rim Colony: Consortium water rations stay tight while autonomous haulers monopolize comet streams.",
+    "LIFT PA: Sunlight +110°C, crater shadow −170°C. Keep suit visors sealed and headlamps ready inside unlit works."
 )
 
 fun stepLift(dt: Double) {

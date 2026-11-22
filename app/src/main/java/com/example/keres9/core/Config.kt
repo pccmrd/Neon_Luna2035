@@ -120,14 +120,14 @@ val MAT: Array<MaterialDef?> = arrayOf(
 
 val FLR: IntArray = intArrayOf(
     0,
-    parseHexColor("#10141d"),
-    parseHexColor("#151c28"),
-    parseHexColor("#121824"),
-    parseHexColor("#0d1119"),
-    parseHexColor("#12202c"),
-    parseHexColor("#141c18"),
-    parseHexColor("#171226"),
-    parseHexColor("#1a2028")
+    parseHexColor("#324052"),
+    parseHexColor("#42556b"),
+    parseHexColor("#364152"),
+    parseHexColor("#3b4352"),
+    parseHexColor("#2c5b73"),
+    parseHexColor("#325343"),
+    parseHexColor("#4a3560"),
+    parseHexColor("#3c4e61")
 )
 
 data class GoodDef(val n: String, val p: Double, val c: Int, val m: Double, val story: Boolean = false)

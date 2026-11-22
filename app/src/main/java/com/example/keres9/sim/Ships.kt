@@ -186,62 +186,229 @@ fun stats(s: Ship) {
 
 private val COL_DEAD_MOD = parseHexColor("#141a22")
 private val COL_53D9FF = parseHexColor("#53d9ff")
-private val COL_FF8C1A = parseHexColor("#ff8c1a")
-private val COL_8A6A2F = parseHexColor("#8a6a2f")
-private val COL_FFB347 = parseHexColor("#ffb347")
+private val COL_C96F2F = parseHexColor("#c96f2f")
 private val COL_FFD166 = parseHexColor("#ffd166")
-private val COL_6DF08F = parseHexColor("#6df08f")
-private val COL_8CFF9E = parseHexColor("#8cff9e")
-private val COL_8B98A8 = parseHexColor("#8b98a8")
+private val COL_CANOPY_DARK = parseHexColor("#123652")
+private val COL_CANOPY_MID = parseHexColor("#1e5b82")
+private val COL_CANOPY_SPEC = parseHexColor("#9eeeff")
+private val COL_NOZZLE_DARK = parseHexColor("#26303d")
+private val COL_NOZZLE_RIM = parseHexColor("#5c6c80")
+private val COL_HULL_FREE = parseHexColor("#7a8ea3")
+private val COL_HULL_SELENE = parseHexColor("#5b748e")
+private val COL_HULL_CREW = parseHexColor("#6c655a")
+private val COL_HULL_HELION = parseHexColor("#634842")
+private val COL_HULL_RIM = parseHexColor("#536d5d")
 private val COL_FLASH_WHITE = Color.argb(217, 255, 240, 210)
 
 fun sprite(s: Ship) {
-    val S = 4
+    val S = 16
     val w = s.gw * S
     val h = s.gh * S
     val bmp = s.spr ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { s.spr = it }
     bmp.eraseColor(0)
     val c = Canvas(bmp)
-    val p = Paint()
+    val p = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    val hullBase = when (s.fac) {
+        "selene" -> COL_HULL_SELENE
+        "crew" -> COL_HULL_CREW
+        "helion" -> COL_HULL_HELION
+        "rim" -> COL_HULL_RIM
+        else -> COL_HULL_FREE
+    }
+    val facAccent = FC[s.fac] ?: COL_53D9FF
+    val bodyTypes = setOf("hull", "cock", "hab", "cargo", "fuel", "eng")
+    val occBody = Array(s.gh) { BooleanArray(s.gw) }
+    val occAny = Array(s.gh) { BooleanArray(s.gw) }
+    for (m in s.mods) {
+        if (m.gy in 0 until s.gh && m.gx in 0 until s.gw) {
+            occAny[m.gy][m.gx] = true
+            if (m.t in bodyTypes) occBody[m.gy][m.gx] = true
+        }
+    }
+
+    // Pass 1: Continuous enclosed fuselage carapace roof
+    for (m in s.mods) {
+        if (m.t == "clamp" || m.t == "rcs" || m.t == "gear") continue
+        val px = (m.gx * S).toFloat()
+        val py = (m.gy * S).toFloat()
+        val sf = S.toFloat()
+        val d = 1.0 - (m.hp / m.max).coerceIn(0.0, 1.0)
+        val midFrac = 1.0 - kotlin.math.abs((m.gy + 0.5) / s.gh - 0.5) * 0.4
+        val plateCol = if (m.dead) COL_DEAD_MOD else sh(hullBase, midFrac * (1.0 - d * 0.35))
+
+        p.style = Paint.Style.FILL
+        p.color = plateCol
+        c.drawRect(px, py, px + sf, py + sf, p)
+
+        // Subtle exterior fuselage bevel & dorsal plating seams
+        val hasTop = m.gy > 0 && occBody[m.gy - 1][m.gx]
+        val hasBot = m.gy < s.gh - 1 && occBody[m.gy + 1][m.gx]
+        val hasLeft = m.gx > 0 && occBody[m.gy][m.gx - 1]
+        val hasRight = m.gx < s.gw - 1 && occBody[m.gy][m.gx + 1]
+
+        if (!hasTop) {
+            p.color = sh(plateCol, 1.24)
+            c.drawRect(px, py, px + sf, py + 2.5f, p)
+        }
+        if (!hasBot) {
+            p.color = sh(plateCol, 0.68)
+            c.drawRect(px, py + sf - 2.5f, px + sf, py + sf, p)
+        }
+        if (!hasLeft && m.t != "eng") {
+            p.color = sh(plateCol, 1.10)
+            c.drawRect(px, py, px + 2f, py + sf, p)
+        }
+        if (!hasRight) {
+            p.color = sh(plateCol, 0.80)
+            c.drawRect(px + sf - 2f, py, px + sf, py + sf, p)
+        }
+        // Subtle hull seam lines (sealed outer skin)
+        p.color = Color.argb(48, 8, 12, 18)
+        c.drawRect(px + sf - 1f, py + 1f, px + sf, py + sf - 1f, p)
+        c.drawRect(px + 1f, py + sf - 1f, px + sf - 1f, py + sf, p)
+    }
+
+    // Pass 2: Dorsal racing stripe along fuselage center spine
+    val spineY = (h / 2f)
+    p.style = Paint.Style.FILL
+    p.color = Color.argb(175, Color.red(facAccent), Color.green(facAccent), Color.blue(facAccent))
+    for (m in s.mods) {
+        if (m.dead || m.t !in bodyTypes || m.t == "cock" || m.t == "eng") continue
+        val cy = (m.gy + 0.5f) * S
+        if (kotlin.math.abs(cy - spineY) <= S * 0.65f) {
+            val px = (m.gx * S).toFloat()
+            c.drawRect(px, spineY - 1.5f, px + S, spineY + 1.5f, p)
+        }
+    }
+
+    // Pass 3: Exterior roof hardware (closed canopy dome, cargo hatch doors, engine cowlings, clamps, radomes)
     for (m in s.mods) {
         val px = (m.gx * S).toFloat()
         val py = (m.gy * S).toFloat()
+        val sf = S.toFloat()
         if (m.dead) {
+            p.style = Paint.Style.FILL
             p.color = COL_DEAD_MOD
-            c.drawRect(px, py, px + S, py + S, p)
+            c.drawRect(px + 1f, py + 1f, px + sf - 1f, py + sf - 1f, p)
+            p.color = Color.argb(140, 255, 110, 40)
+            c.drawCircle(px + sf * 0.5f, py + sf * 0.5f, 2f, p)
             continue
         }
-        val d = 1.0 - m.hp / m.max
-        val col = MD[m.t]?.c ?: COL_8B98A8
-        p.color = sh(col, 1.0 - d * 0.5)
-        c.drawRect(px, py, px + S, py + S, p)
-        p.color = sh(col, 1.25 - d * 0.5)
-        c.drawRect(px, py, px + S, py + 1f, p)
-        p.color = sh(col, 0.6)
-        c.drawRect(px, py + S - 1f, px + S, py + S, p)
         when (m.t) {
-            "cock" -> { p.color = COL_53D9FF; c.drawRect(px + 1f, py + 1f, px + 3f, py + 3f, p) }
-            "eng" -> { p.color = COL_FF8C1A; c.drawRect(px, py + 1f, px + 1f, py + 3f, p) }
-            "mine" -> { p.color = COL_53D9FF; c.drawRect(px + S - 1f, py + 1f, px + S, py + 3f, p) }
-            "cargo" -> { p.color = COL_8A6A2F; c.drawRect(px + 1f, py + 1f, px + 3f, py + 3f, p) }
-            "fuel" -> { p.color = COL_FFB347; c.drawRect(px + 1f, py + 1f, px + 3f, py + 2f, p) }
-            "clamp" -> {
-                p.color = COL_FFD166
-                c.drawRect(px + S - 1f, py, px + S, py + 1f, p)
-                c.drawRect(px + S - 1f, py + 3f, px + S, py + 4f, p)
+            "cock" -> {
+                // Tinted aerospace cockpit canopy dome (opaque glass roof)
+                p.style = Paint.Style.FILL
+                p.color = COL_CANOPY_DARK
+                c.drawRoundRect(px + 2f, py + 2.5f, px + sf - 1.5f, py + sf - 2.5f, 4f, 4f, p)
+                p.color = COL_CANOPY_MID
+                c.drawRoundRect(px + 3.5f, py + 3.5f, px + sf - 2.5f, py + sf - 3.5f, 3f, 3f, p)
+                p.color = COL_CANOPY_SPEC
+                c.drawRoundRect(px + 5.5f, py + 4.5f, px + sf - 4f, py + 6.8f, 1.5f, 1.5f, p)
             }
-            "gear" -> { p.color = COL_6DF08F; c.drawRect(px + 1f, py + 1f, px + 3f, py + 3f, p) }
-            "scan" -> { p.color = COL_53D9FF; c.drawRect(px + 1f, py, px + 3f, py + 1f, p) }
-            "hab" -> { p.color = COL_8CFF9E; c.drawRect(px + 1f, py + 1f, px + 2f, py + 2f, p) }
+            "cargo" -> {
+                // Closed armored clam-shell cargo bay roof hatches
+                val hatchCol = sh(hullBase, 0.90)
+                p.style = Paint.Style.FILL
+                p.color = hatchCol
+                c.drawRect(px + 2f, py + 2f, px + sf - 2f, py + sf - 2f, p)
+                p.style = Paint.Style.STROKE
+                p.strokeWidth = 1f
+                p.color = sh(hullBase, 0.62)
+                c.drawRect(px + 2f, py + 2f, px + sf - 2f, py + sf - 2f, p)
+                c.drawLine(px + 2f, py + sf * 0.5f, px + sf - 2f, py + sf * 0.5f, p)
+                p.style = Paint.Style.FILL
+                p.color = facAccent
+                c.drawRect(px + 3.5f, py + sf * 0.5f - 1f, px + 5.5f, py + sf * 0.5f + 1f, p)
+            }
+            "hab" -> {
+                // Armored crew blister with tiny exterior observation slit
+                p.style = Paint.Style.FILL
+                p.color = sh(hullBase, 1.08)
+                c.drawRoundRect(px + 2.5f, py + 3f, px + sf - 2.5f, py + sf - 3f, 2f, 2f, p)
+                p.color = COL_CANOPY_MID
+                c.drawRect(px + 5f, py + 5f, px + sf - 5f, py + 7f, p)
+            }
+            "fuel" -> {
+                // Ribbed dorsal propellant nacelle cowling
+                p.style = Paint.Style.FILL
+                p.color = sh(hullBase, 0.92)
+                c.drawRoundRect(px + 1.5f, py + 2.5f, px + sf - 1.5f, py + sf - 2.5f, 3f, 3f, p)
+                p.color = Color.argb(140, 255, 179, 71)
+                c.drawRect(px + 4f, py + 3.5f, px + 5.5f, py + sf - 3.5f, p)
+            }
+            "eng" -> {
+                // Dark thruster cowling & bell nozzle at rear
+                p.style = Paint.Style.FILL
+                p.color = COL_NOZZLE_DARK
+                c.drawRect(px + 2f, py + 2f, px + sf, py + sf - 2f, p)
+                p.color = COL_NOZZLE_RIM
+                c.drawRect(px, py + 3f, px + 4f, py + sf - 3f, p)
+                p.color = COL_C96F2F
+                c.drawRect(px, py + 5f, px + 2f, py + sf - 5f, p)
+            }
+            "clamp" -> {
+                // Heavy nose grappling pincers
+                p.style = Paint.Style.FILL
+                p.color = COL_NOZZLE_RIM
+                c.drawRect(px, py + 2f, px + sf * 0.55f, py + sf - 2f, p)
+                p.color = COL_FFD166
+                c.drawRect(px + sf * 0.45f, py + 1.5f, px + sf, py + 4.5f, p)
+                c.drawRect(px + sf * 0.45f, py + sf - 4.5f, px + sf, py + sf - 1.5f, p)
+            }
+            "rcs" -> {
+                // Compact RCS thruster blister
+                p.style = Paint.Style.FILL
+                p.color = sh(hullBase, 0.85)
+                c.drawRoundRect(px + 3f, py + 3f, px + sf - 3f, py + sf - 3f, 2f, 2f, p)
+                p.color = COL_NOZZLE_RIM
+                c.drawRect(px + sf * 0.5f - 1.5f, py + 1f, px + sf * 0.5f + 1.5f, py + sf - 1f, p)
+            }
+            "gear" -> {
+                // Stowed landing skid housing
+                p.style = Paint.Style.FILL
+                p.color = COL_NOZZLE_DARK
+                c.drawRect(px + 3f, py + 4f, px + sf - 3f, py + sf - 4f, p)
+                p.color = COL_NOZZLE_RIM
+                c.drawRect(px + 4f, py + 6f, px + sf - 4f, py + sf - 6f, p)
+            }
+            "scan" -> {
+                // Circular dorsal sensor radome
+                p.style = Paint.Style.FILL
+                p.color = COL_NOZZLE_RIM
+                c.drawCircle(px + sf * 0.5f, py + sf * 0.5f, 5.2f, p)
+                p.color = COL_53D9FF
+                c.drawCircle(px + sf * 0.5f, py + sf * 0.5f, 2.2f, p)
+            }
+            "mine" -> {
+                // Cutter emitter turret housing
+                p.style = Paint.Style.FILL
+                p.color = COL_NOZZLE_RIM
+                c.drawRect(px + 3f, py + 4f, px + sf - 2f, py + sf - 4f, p)
+                p.color = COL_53D9FF
+                c.drawRect(px + sf - 4f, py + 5.5f, px + sf - 1f, py + sf - 5.5f, p)
+            }
+            "gun" -> {
+                p.style = Paint.Style.FILL
+                p.color = COL_NOZZLE_DARK
+                c.drawCircle(px + sf * 0.5f, py + sf * 0.5f, 4.5f, p)
+                p.color = COL_C96F2F
+                c.drawRect(px + sf * 0.5f, py + sf * 0.5f - 1.5f, px + sf, py + sf * 0.5f + 1.5f, p)
+            }
+        }
+        // Combat scorch weathering on damaged intact modules
+        val dmg = 1.0 - (m.hp / m.max).coerceIn(0.0, 1.0)
+        if (dmg > 0.25) {
+            p.style = Paint.Style.FILL
+            p.color = Color.argb((dmg * 110).toInt().coerceIn(0, 140), 12, 10, 10)
+            c.drawCircle(px + sf * 0.45f, py + sf * 0.55f, (dmg * 5.0).toFloat(), p)
         }
         if (m.flash > 0.0) {
+            p.style = Paint.Style.FILL
             p.color = COL_FLASH_WHITE
-            c.drawRect(px, py, px + S, py + S, p)
+            c.drawRect(px, py, px + sf, py + sf, p)
         }
     }
-    p.color = FC[s.fac] ?: COL_8B98A8
-    c.drawRect(w - 2f, 0f, w.toFloat(), 1f, p)
-    c.drawRect(0f, h - 1f, 2f, h.toFloat(), p)
     s.dirty = false
 }
 

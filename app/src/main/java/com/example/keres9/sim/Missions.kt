@@ -20,22 +20,28 @@ import kotlin.math.roundToInt
 fun newGame(): GameState = GameState()
 
 val STORY: List<StoryStep> = listOf(
-    StoryStep("wake", "MORNING, PROSPECTOR", "Walk east out of HAB 14 (A/D to walk, W to hop) to the SELENE LIFT terminal and step into the lift hall.", 0),
-    StoryStep("up", "UP THE CABLE", "In the lift hall press F — RIDE LIFT ▲ to SELENE HIGH, 1.4 km up in the synchronous band.", 0),
-    StoryStep("sign", "SIGN ON WITH LU'S CREW", "Float to the CREW OFFICE (upper left room), press F at the terminal and BOARD MULE-3.", 0),
-    StoryStep("shift", "FIRST SHIFT", "On site: cut rock with [M], let the sack fill, stow it at MULE-3. When the horn sounds, press F at the hatch.", 150),
-    StoryStep("survey", "EYES ON THE DARK", "Survey 3 uncatalogued bodies — [C] hand scanner on EVA near rock, or a ship array. Bounties pay at the CATALOG OFFICE.", 200),
+    StoryStep("arrive", "ARRIVAL ABOARD MERIDIAN", "Step out of PSV MERIDIAN's east airlock and jet 60 m east into SELENE HIGH to report at the INTAKE OFFICE.", 0),
+    StoryStep("intake", "CONSORTIUM INTAKE", "In the INTAKE OFFICE (lower-left room), press F at the terminal, sign all 3 consortium clauses, and claim your Room 14B keycard.", 120),
+    StoryStep("bunk", "ROOM 14B ON THE RIM", "Ride SELENE LIFT ▼ down to Shackleton Rim, walk west to HAB 14 · SHARED ROOM 14B, and claim your assigned bunk [F].", 0),
+    StoryStep("commute", "MORNING MUSTER", "Muster east into SELENE LIFT with your crewmates and ride the cable ▲ up to SELENE HIGH.", 0),
+    StoryStep("sign", "REPORT TO MANAGER LIU", "Float to the CREW OFFICE (upper-left), press F at Manager Liu Mei's terminal and BOARD MULE-3.", 0),
+    StoryStep("shift", "FIRST SHIFT", "On site: cut rock with [MINE] (use [LIGHT] inside dark caves), fill your sack, and board MULE-3 before the horn.", 150),
+    StoryStep("survey", "EYES ON THE DARK", "Survey 3 uncatalogued bodies — [C] hand scanner on EVA near rock, or a ship array. Consortium bounties pay at the CATALOG OFFICE.", 200),
     StoryStep("hull", "YOUR OWN HULL", "Work shifts, sell your finds and save 2,400₡ for a WREN orbital tug at the SELENE HIGH shipyard.", 0),
     StoryStep("sell", "SELL TO THE STARS", "Mine from your WREN and sell 8+ units to ARES TRANSIT (Mars), GAIA RETURN (Earth) or VULCAN REFINERY.", 300),
-    StoryStep("ghost", "GHOST TAGS", "Somebody staked bodies before KERES-9 died. Deep-scan [C, tune the dial] and resolve 2 HELION claim transponders.", 400),
-    StoryStep("shards", "KERES-9'S MEMORY", "Cut 3 KERES-9 core shards out of sealed chambers and hand them in at the CATALOG OFFICE on SELENE HIGH.", 1500),
+    StoryStep("ghost", "GHOST TAGS", "Autonomous Helion probes staked bodies before KERES-9 died. Deep-scan [C, tune the dial] and resolve 2 HELION claim transponders.", 400),
+    StoryStep("shards", "KERES-9'S MEMORY", "Cut 3 KERES-9 core shards out of sealed dark chambers and deliver them at the CATALOG OFFICE on SELENE HIGH.", 1500),
     StoryStep("lander", "DOWN THE WELL", "Ride the lift down and buy a HARE surface lander at SHACKLETON DEPOT (6,500₡).", 0),
     StoryStep("launch", "PAD TO ORBIT", "Throttle up off PAD 1, pitch over, climb 1,200 m into the band and dock or harpoon on. All manual.", 500),
     StoryStep("water", "WATER FOR THE RIM", "Fly ice down the well: sell 20 Water Ice at SHACKLETON DEPOT from the HARE on the pad.", 900),
     StoryStep("orphan", "STAKE THE ORPHAN", "The Orphan is on your chart. Cut into its platinum heart and sell 12 Platinum Group to GAIA RETURN.", 2500),
-    StoryStep("file", "FILE THE CLAIM", "At the CATALOG OFFICE, file the Orphan claim in your own name — and the KERES-9 logs with it.", 0),
-    StoryStep("free", "FREE PROSPECTOR", "The band is yours: catalog it, mine it, fly it. Contracts refresh on every station board.", 0)
+    StoryStep("file", "FILE THE CLAIM", "At the CATALOG OFFICE, file the Orphan claim in your own name — and the unredacted KERES-9 logs with it.", 0),
+    StoryStep("free", "FREE PROSPECTOR", "The band is yours: between Consortium tariffs and Syndicate claims, an independent cutter still writes the log.", 0)
 )
+
+fun storyIndex(id: String): Int = STORY.indexOfFirst { it.id == id }.let { if (it < 0) 0 else it }
+
+fun storyAtOrPast(id: String): Boolean = (GS.G?.story ?: 0) >= storyIndex(id)
 
 fun storyObj(): StoryStep {
     val idx = min(GS.G?.story ?: 0, STORY.lastIndex)
@@ -107,8 +113,10 @@ fun story(
     }
     if (ev0 == "resolved" && contact?.kind == "claim") inc("claims")
     when (s.id) {
-        "wake" -> if (ev0 == "room" && roomKind == "lift" && roomBody === SITES.lift) done("the cars run every couple of minutes")
-        "up" -> if (ev0 == "lift" && liftTop) done("welcome to SELENE HIGH")
+        "arrive" -> if ((ev0 == "room" && roomBody === SITES.sel) || ev0 == "intake") done("welcome aboard SELENE HIGH — head into the INTAKE OFFICE")
+        "intake" -> if (ev0 == "intake" || G.paperworkDone) done("Room 14B keycard authorized")
+        "bunk" -> if (ev0 == "bunk" || G.bunkClaimed) done("bunk locked in — muster east at the Lift for 06:00 shift")
+        "commute" -> if (ev0 == "lift" && liftTop) done("report to Manager Liu in Crew Office (upper-left)")
         "sign" -> if (ev0 == "board") done("MULE-3 is lifting")
         "shift" -> if (ev0 == "shift" && shiftUnits >= 1) done("you are a hand now")
         "survey" -> if (prog("cat") >= 3) done("the office pays per body")
@@ -131,7 +139,7 @@ fun story(
     }
 }
 
-private val PASSIVE_STORY_IDS = setOf("survey", "hull", "sell", "ghost", "shards", "lander", "water", "orphan")
+private val PASSIVE_STORY_IDS = setOf("intake", "bunk", "survey", "hull", "sell", "ghost", "shards", "lander", "water", "orphan")
 
 fun checkStory() {
     val s = storyObj()

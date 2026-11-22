@@ -399,12 +399,24 @@ fun FlightTouchControls(
                     }
                 }
                 KeresButton(
+                    onClick = { IN.edge.add("light") },
+                    active = controls.lightOn,
+                    minHeight = 48.dp,
+                    contentPaddingHorizontal = 4.dp,
+                    modifier = Modifier
+                        .width(sqWidth.coerceAtLeast(48.dp))
+                        .height(48.dp)
+                        .testTag("light_button")
+                ) {
+                    Text("LIGHT", fontSize = 9.sp)
+                }
+                KeresButton(
                     onClick = { IN.edge.add("scan") },
                     active = controls.scanAct,
                     minHeight = 48.dp,
                     contentPaddingHorizontal = 4.dp,
                     modifier = Modifier
-                        .width(sqWidth)
+                        .width(sqWidth.coerceAtLeast(48.dp))
                         .height(48.dp)
                         .testTag("scan_button")
                 ) {
@@ -414,7 +426,7 @@ fun FlightTouchControls(
                     label = "MINE",
                     active = controls.aiOn && controls.aiMine,
                     modifier = Modifier
-                        .width(sqWidth)
+                        .width(sqWidth.coerceAtLeast(48.dp))
                         .height(48.dp)
                         .testTag("mine_button"),
                     onHoldChange = { held -> IN.mineHold = held }

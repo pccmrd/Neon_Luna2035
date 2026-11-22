@@ -178,11 +178,12 @@ fun StationSheet(
                     when (station.activeTab) {
                         "market" -> MarketTabContent(station, aiPickTag)
                         "service" -> ServicesTabContent(station, aiPickTag)
+                        "intake" -> IntakeTabContent(station, aiPickTag)
                         "crew" -> CrewTabContent(station, aiPickTag)
                         "yard" -> YardTabContent(station, aiPickTag)
                         "catalog" -> CatalogTabContent(station, aiPickTag)
                         "jobs" -> JobsTabContent(station, aiPickTag)
-                        "home" -> HomeTabContent(station)
+                        "home" -> HomeTabContent(station, aiPickTag)
                         else -> BarTabContent(station)
                     }
                 }
@@ -337,13 +338,113 @@ private fun ServicesTabContent(station: StationUiState, aiPickTag: String?) {
 }
 
 @Composable
+private fun IntakeTabContent(station: StationUiState, aiPickTag: String?) {
+    NpcPortraitCard(
+        seed = 419 * 77 + 13,
+        fac = "selene",
+        name = "Clerk Chen Wei",
+        role = "CONSORTIUM INTAKE · SELENE HIGH (EASTERN CABLE AUTHORITY)",
+        quote = "\"Welcome off PSV MERIDIAN. Ever since the 2029 Compute Accords carved up the Rim and Helion's automated rigs started jumping claims, we bond every human cutter manually. Initial all three clauses to draw your 120₡ advance and Room 14B keycard.\""
+    )
+    InfoRow(
+        "FORM ECC-2035 · CONTRACT PROSPECTOR ONBOARDING",
+        "Eastern Cable Consortium vs. Western Commercial Syndicate (Helion Minerals) · Sector 4 Partition"
+    )
+    IntakeClauseRow(
+        title = "CLAUSE 1 · KERES-9 LIABILITY WAIVER",
+        desc = "Releases Eastern Cable Consortium from claims involving dead KERES-9 beacons or autonomous Belt haul-engine wakes.",
+        checked = station.docWaiver,
+        enabled = !station.paperworkDone,
+        aiHighlight = aiPickTag == "intake_waiver_check",
+        tag = "intake_waiver_check",
+        onClick = { GameSession.panelAct("intake_toggle", extra = "waiver") }
+    )
+    IntakeClauseRow(
+        title = "CLAUSE 2 · 2029 COMPUTE ACCORDS TELEMETRY",
+        desc = "Routes all hand-cutter assays and scanner pings through Consortium verification nodes under lunar partition law.",
+        checked = station.docTelemetry,
+        enabled = !station.paperworkDone,
+        aiHighlight = aiPickTag == "intake_telemetry_check",
+        tag = "intake_telemetry_check",
+        onClick = { GameSession.panelAct("intake_toggle", extra = "telemetry") }
+    )
+    IntakeClauseRow(
+        title = "CLAUSE 3 · SHACKLETON HAB 14 · ROOM 14B BERTH",
+        desc = "Assigns shared bunk in Room 14B alongside Dagny Okafor, Tomas Reyes & Ines Varga. Bunk required before shift muster.",
+        checked = station.docZone,
+        enabled = !station.paperworkDone,
+        aiHighlight = aiPickTag == "intake_zone_check",
+        tag = "intake_zone_check",
+        onClick = { GameSession.panelAct("intake_toggle", extra = "zone") }
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    val allChecked = station.docWaiver && station.docTelemetry && station.docZone
+    KeresButton(
+        onClick = { GameSession.panelAct("intake_submit") },
+        enabled = !station.paperworkDone && allChecked,
+        primaryCtx = !station.paperworkDone && allChecked,
+        ready = !station.paperworkDone && allChecked,
+        aiHighlight = aiPickTag == "intake_submit_button",
+        minHeight = 48.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("intake_submit_button")
+    ) {
+        Text(
+            text = if (station.paperworkDone) "INTAKE CLEARED · ROOM 14B KEYCARD ACTIVE" else "FILE INTAKE & CLAIM KEYCARD (+120₡)",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+}
+
+@Composable
+private fun IntakeClauseRow(
+    title: String,
+    desc: String,
+    checked: Boolean,
+    enabled: Boolean,
+    aiHighlight: Boolean,
+    tag: String,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontFamily = RobotoMonoFamily, fontSize = 11.sp, color = if (checked) KeresColors.Cyan else KeresColors.Text)
+            Text(desc, fontFamily = RobotoMonoFamily, fontSize = 9.sp, lineHeight = 13.sp, color = KeresColors.Dim)
+        }
+        KeresButton(
+            onClick = onClick,
+            enabled = enabled,
+            active = checked,
+            aiHighlight = aiHighlight,
+            minHeight = 48.dp,
+            contentPaddingHorizontal = 12.dp,
+            modifier = Modifier.testTag(tag)
+        ) {
+            Text(if (checked) "✓ SIGNED" else "INITIAL", fontSize = 10.sp)
+        }
+    }
+    HorizontalDivider(color = KeresColors.Divider)
+}
+
+@Composable
 private fun CrewTabContent(station: StationUiState, aiPickTag: String?) {
     NpcPortraitCard(
         seed = 991 * 77 + 13,
         fac = "crew",
-        name = "Foreman Lu Mei",
+        name = "Manager Liu Mei",
         role = "CREW OFFICE · SELENE HIGH",
-        quote = "\"Catalog's dead, so nobody knows what's in half these rocks. That's good for us. Suit up, ride the MULE, cut what you can carry. Base pay 140₡ a shift plus 60% of what's in your sack. Bring it back to the shuttle before the horn.\""
+        quote = "\"Intake cleared? Good. Half these rocks came down from autonomous engines before KERES-9 stroked out, and Helion probes are tagging the best ones. Keep your headlamp on inside dark fissures, fill your sack on MULE-3, and get back to the airlock before the horn. 140₡ base plus 60% of your cut.\""
     )
     ServiceActionRow(
         title = "MULE-3",
@@ -359,7 +460,7 @@ private fun CrewTabContent(station: StationUiState, aiPickTag: String?) {
         InfoRow("ON A SHIP?", "Crew work is EVA only. Step out [EVA] inside the station to sign on.")
     }
     if (station.crewTier2Note) {
-        InfoRow("YOUR OWN HULL", "Lu: \"Still welcome on the MULE when the tug is in the shop.\"")
+        InfoRow("YOUR OWN HULL", "Liu: \"Still welcome on the MULE when your tug is in the bay.\"")
     }
 }
 
@@ -450,16 +551,28 @@ private fun JobsTabContent(station: StationUiState, aiPickTag: String?) {
 }
 
 @Composable
-private fun HomeTabContent(station: StationUiState) {
-    ServiceActionRow(
-        title = station.homeBunkTitle,
-        desc = station.homeBunkDesc,
-        buttonLabel = "SLEEP & SAVE",
-        enabled = true,
-        aiHighlight = false,
-        tag = "sleep_btn",
-        onClick = { GameSession.panelAct("sleep") }
-    )
+private fun HomeTabContent(station: StationUiState, aiPickTag: String?) {
+    if (!station.bunkClaimed) {
+        ServiceActionRow(
+            title = station.homeBunkTitle,
+            desc = station.homeBunkDesc,
+            buttonLabel = "CLAIM BUNK",
+            enabled = station.paperworkDone,
+            aiHighlight = aiPickTag == "bunk_claim_button",
+            tag = "bunk_claim_button",
+            onClick = { GameSession.panelAct("bunk_claim") }
+        )
+    } else {
+        ServiceActionRow(
+            title = station.homeBunkTitle,
+            desc = station.homeBunkDesc,
+            buttonLabel = "SLEEP & SAVE",
+            enabled = station.homeCanSleep,
+            aiHighlight = false,
+            tag = "sleep_btn",
+            onClick = { GameSession.panelAct("sleep") }
+        )
+    }
     InfoRow("CAREER", station.homeCareerDesc)
     InfoRow("STORY", station.homeStoryDesc)
     if (station.homeSackNote) {

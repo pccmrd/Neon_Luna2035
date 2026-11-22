@@ -186,6 +186,12 @@ data class StationUiState(
     val homeCareerDesc: String = "",
     val homeStoryDesc: String = "",
     val homeSackNote: Boolean = false,
+    val docWaiver: Boolean = false,
+    val docTelemetry: Boolean = false,
+    val docZone: Boolean = false,
+    val paperworkDone: Boolean = false,
+    val bunkClaimed: Boolean = false,
+    val homeCanSleep: Boolean = false,
     val barTitle: String = "",
     val barSouls: Int = 0,
     val barSeed: Int = 1,
@@ -214,7 +220,8 @@ data class ControlsUiState(
     val ctxReady: Boolean = false,
     val ctxEnabled: Boolean = false,
     val altLabel: String? = null,
-    val aiPickTag: String? = null
+    val aiPickTag: String? = null,
+    val lightOn: Boolean = true
 )
 
 data class HudUiState(
@@ -298,6 +305,7 @@ object GameSession {
     private val TAB_NAMES = mapOf(
         "market" to "MARKET",
         "service" to "SERVICES",
+        "intake" to "INTAKE",
         "crew" to "CREW OFFICE",
         "yard" to "SHIPYARD",
         "catalog" to "CATALOG",
@@ -531,9 +539,23 @@ object GameSession {
 
     private fun wakeAtHome() {
         val h = SITES.hab
-        val p = airlockSpot(h, h.x, h.y) ?: Vec2(h.x, h.y) ?: Vec2(h.x, h.y)
+        val p = airlockSpot(h, h.x, h.y) ?: Vec2(h.x, h.y)
         val suit = mkSuit(p.x, p.y)
         suit.a = atan2(h.y, h.x) + PI / 2.0
+        GS.ev = suit
+        GS.cam.x = suit.x
+        GS.cam.y = suit.y
+        GS.cam.rot = atan2(suit.y, suit.x) + PI / 2.0
+        GS.cam.snap = true
+    }
+
+    private fun wakeOnLiner() {
+        val l = SITES.liner
+        val p = cw(l, 43.0, 9.5)
+        val suit = mkSuit(p.x, p.y)
+        suit.a = l.a
+        suit.vx = l.vx
+        suit.vy = l.vy
         GS.ev = suit
         GS.cam.x = suit.x
         GS.cam.y = suit.y
@@ -552,7 +574,7 @@ object GameSession {
         initAgents()
         eventsInit()
         GS.W?.stations?.forEach { mkJobs(it) }
-        wakeAtHome()
+        wakeOnLiner()
         wasSurf = false
     }
 
@@ -568,6 +590,7 @@ object GameSession {
         obj.put("vy", s.vy)
         obj.put("fuel", s.fuel)
         obj.put("gear", s.gear)
+        obj.put("lightOn", s.lightOn)
         obj.put("isPl", s.isPl)
         obj.put("cargo", JSONObject().apply { s.cargo.forEach { (k, v) -> put(k, v) } })
         obj.put("upg", JSONObject().apply { s.upg.forEach { (k, v) -> put(k, v) } })
@@ -672,6 +695,11 @@ object GameSession {
             gObj.put("suitUp", G.suitUp)
             gObj.put("cores", G.cores)
             gObj.put("shifts", G.crew?.shifts ?: 0)
+            gObj.put("paperworkDone", G.paperworkDone)
+            gObj.put("bunkClaimed", G.bunkClaimed)
+            gObj.put("docWaiver", G.docWaiver)
+            gObj.put("docTelemetry", G.docTelemetry)
+            gObj.put("docZone", G.docZone)
             root.put("g", gObj)
 
             val stObj = JSONObject().apply {
@@ -696,6 +724,7 @@ object GameSession {
                     put("x", evCur.x)
                     put("y", evCur.y)
                     put("suit", evCur.suit)
+                    put("lightOn", evCur.lightOn)
                     put("sack", JSONObject().apply { evCur.sack.forEach { (k, v) -> put(k, v) } })
                 })
             }
@@ -836,6 +865,12 @@ object GameSession {
             g.suitUp = gObj.optDouble("suitUp", 1.0)
             g.cores = gObj.optInt("cores", 0)
             g.crew?.shifts = gObj.optInt("shifts", 0)
+            val legacyAct1 = !gObj.has("paperworkDone") && ((g.crew?.shifts ?: 0) > 0 || (d.optJSONArray("fleet")?.length() ?: 0) > 0)
+            g.paperworkDone = gObj.optBoolean("paperworkDone", legacyAct1)
+            g.bunkClaimed = gObj.optBoolean("bunkClaimed", legacyAct1)
+            g.docWaiver = gObj.optBoolean("docWaiver", legacyAct1)
+            g.docTelemetry = gObj.optBoolean("docTelemetry", legacyAct1)
+            g.docZone = gObj.optBoolean("docZone", legacyAct1)
 
             val W = GS.W!!
             d.optJSONObject("stats")?.let { st ->
@@ -960,7 +995,7 @@ object GameSession {
                 }
             }
 
-            if (g.story >= 9) W.orphan?.let { it.hidden = false }
+            if (storyAtOrPast("lander")) W.orphan?.let { it.hidden = false }
 
             var flying: Ship? = null
             d.optJSONArray("fleet")?.let { fa ->
@@ -972,6 +1007,7 @@ object GameSession {
                     s.vy = fs.optDouble("vy", 0.0)
                     val savedFuel = fs.optDouble("fuel", s.fuel)
                     s.gear = fs.optBoolean("gear", false)
+                    s.lightOn = fs.optBoolean("lightOn", true)
                     s.cargo.clear()
                     fs.optJSONObject("cargo")?.let { co ->
                         val keys = co.keys()
@@ -1035,6 +1071,7 @@ object GameSession {
             } else if (evJson != null) {
                 val suit = mkSuit(evJson.optDouble("x"), evJson.optDouble("y"))
                 suit.suit = evJson.optDouble("suit", 100.0)
+                suit.lightOn = evJson.optBoolean("lightOn", true)
                 evJson.optJSONObject("sack")?.let { so ->
                     val keys = so.keys()
                     while (keys.hasNext()) {
@@ -1046,7 +1083,7 @@ object GameSession {
                 GS.cam.x = suit.x
                 GS.cam.y = suit.y
             } else {
-                wakeAtHome()
+                if (g.bunkClaimed) wakeAtHome() else wakeOnLiner()
             }
 
             GS.cam.rot = atan2(GS.cam.y, GS.cam.x) + PI / 2.0
@@ -1086,18 +1123,18 @@ object GameSession {
         GS.cam.tz = defZoom()
         GS.cam.user = 0.0
         if (!quiet) {
-            toast("2035 · SHACKLETON RIM. You are a prospector with a suit, a bunk and 240₡.", "warn")
+            toast("2035 · LUNAR ORBIT, PSV MERIDIAN. Disembark east into SELENE HIGH and file your Consortium Intake.", "warn")
             pendingToasts.add(
                 PendingToast(
                     2.2,
-                    "Move stick walks · Jump hops · F interacts · walk east to the SELENE LIFT (follow the LIFT arrow)",
+                    "Left stick jets · [LIGHT] toggles your suit headlamp · F interacts with terminals",
                     null
                 )
             )
             pendingToasts.add(
                 PendingToast(
                     5.2,
-                    "Tap AI at the top bar any time to let the autopilot play.",
+                    "Tap AI at the top bar any time to let the autopilot run the full career.",
                     null
                 )
             )
@@ -1131,13 +1168,18 @@ object GameSession {
         G.cr = floor(G.cr * 0.85).toInt()
         G.ride = null
         G.crew?.let { if (it.state != "idle") it.late = true }
-        wakeAtHome()
+        if (G.bunkClaimed) wakeAtHome() else wakeOnLiner()
         GS.PC.scan = false
         GS.PC.match = false
         GS.PC.assist = null
-        apAbort(if (AP.on) "Woke up in the HAB 14 medbay — starting the day over." else null)
+        val respMsg = if (G.bunkClaimed) {
+            "MEDBAY, HAB 14 · −15% credits. Your ships are where you left them."
+        } else {
+            "SICKBAY, PSV MERIDIAN · −15% credits. Jet east to SELENE HIGH to file Intake."
+        }
+        apAbort(if (AP.on) "Recovered to ${if (G.bunkClaimed) "HAB 14 medbay" else "PSV MERIDIAN sickbay"} — continuing." else null)
         mode("play")
-        toast("MEDBAY, HAB 14 · −15% credits. Your ships are where you left them.", "warn")
+        toast(respMsg, "warn")
         save()
     }
 
@@ -1353,10 +1395,49 @@ object GameSession {
                 pushStates()
                 return
             }
+            "intake_toggle" -> {
+                if (!G.paperworkDone) {
+                    when (extra) {
+                        "waiver" -> G.docWaiver = !G.docWaiver
+                        "telemetry" -> G.docTelemetry = !G.docTelemetry
+                        "zone" -> G.docZone = !G.docZone
+                    }
+                }
+            }
+            "intake_submit" -> {
+                if (G.paperworkDone) {
+                    toast("Consortium Intake already on file. Room 14B keycard active.", "good")
+                } else if (!G.docWaiver || !G.docTelemetry || !G.docZone) {
+                    toast("Initial all three Consortium compliance clauses before filing.", "warn")
+                } else {
+                    G.paperworkDone = true
+                    G.cr += 120
+                    W.stats.earned += 120
+                    AU.cash()
+                    story("intake")
+                    save()
+                    toast("CONSORTIUM INTAKE CLEARED · +120₡ stipend · Room 14B keycard issued", "good")
+                }
+            }
+            "bunk_claim" -> {
+                if (!G.paperworkDone) {
+                    toast("Keycard rejected — file Consortium Intake at SELENE HIGH before claiming Bunk 14B.", "warn")
+                } else if (!G.bunkClaimed) {
+                    G.bunkClaimed = true
+                    AU.chime()
+                    story("bunk")
+                    save()
+                    toast("BUNK 14B CLAIMED · Consortium berth logged. Ride SELENE LIFT ▲ for muster.", "good")
+                }
+            }
             "sleep" -> {
-                GS.ev?.let { it.suit = 100.0 }
-                save()
-                toast("Slept. Saved. The cable hums outside.", "good")
+                if (!G.paperworkDone || !G.bunkClaimed) {
+                    toast("Claim your assigned bunk in Room 14B after Intake before logging sleep.", "warn")
+                } else {
+                    GS.ev?.let { it.suit = 100.0 }
+                    save()
+                    toast("Slept. Saved. Dagny and Tomas snore through the cable hum.", "good")
+                }
             }
         }
         pushStates()
@@ -1765,7 +1846,8 @@ object GameSession {
             ctxReady = PC.ctx.ok,
             ctxEnabled = PC.ctx.f != null,
             altLabel = PC.alt?.l,
-            aiPickTag = AP.aiPickTag
+            aiPickTag = AP.aiPickTag,
+            lightOn = GS.ev?.lightOn ?: pl?.lightOn ?: true
         )
     }
 
@@ -2029,10 +2111,14 @@ object GameSession {
             }
             "crew" -> {
                 val c = G.crew
-                crewCanBoard = c != null && c.state == "idle" && ev != null && !ev.hide
-                crewLineTxt = "${crewLine()} · shifts worked ${c?.shifts ?: 0}"
+                crewCanBoard = c != null && c.state == "idle" && ev != null && !ev.hide && G.paperworkDone && G.bunkClaimed
+                crewLineTxt = if (!G.paperworkDone || !G.bunkClaimed) {
+                    "LOCKED · Clear Intake Office and claim your Room 14B bunk on Shackleton Rim first."
+                } else {
+                    "${crewLine()} · shifts worked ${c?.shifts ?: 0}"
+                }
                 crewShifts = c?.shifts ?: 0
-                crewMatesTxt = "${MATES.joinToString(" · ") { it.n }} — two of them go out with you every shift."
+                crewMatesTxt = "${MATES.joinToString(" · ") { it.n }} — Room 14B bunkmates. Two muster with you aboard MULE-3 each shift."
                 crewInShipNote = ev == null
                 crewTier2Note = G.tier >= 2
             }
@@ -2097,11 +2183,16 @@ object GameSession {
             }
             "home" -> {
                 val fleet = G.fleet.filter { !it.dead }
-                homeBunkTitle = "HAB 14 · YOUR BUNK"
-                homeBunkDesc = "Rim Colony, Shackleton. Day ${G.day}. " + if (G.tier == 1) {
-                    "You own a suit and a bunk. The lift is 150 m east."
-                } else {
-                    "Fleet: " + fleet.joinToString(", ") { s ->
+                homeBunkTitle = when {
+                    !G.paperworkDone -> "HAB 14 · SHARED ROOM 14B (KEYCARD LOCKED)"
+                    !G.bunkClaimed -> "HAB 14 · SHARED ROOM 14B (UNCLAIMED BUNK)"
+                    else -> "HAB 14 · SHARED ROOM 14B (BUNK 04)"
+                }
+                homeBunkDesc = "Shared quarter with Dagny Okafor, Tomas Reyes & Ines Varga · Shackleton Rim. Day ${G.day}. " + when {
+                    !G.paperworkDone -> "Clear Consortium Intake at SELENE HIGH first to unlock your bunk badge."
+                    !G.bunkClaimed -> "Tap CLAIM BUNK to register your berth and clear morning muster on SELENE LIFT."
+                    G.tier == 1 -> "Berth active. SELENE LIFT terminal is 150 m east."
+                    else -> "Fleet: " + fleet.joinToString(", ") { s ->
                         "${s.name} @ ${s.dock?.b?.name ?: if (s.dock != null) "regolith" else "in flight"}"
                     }
                 }
@@ -2115,8 +2206,11 @@ object GameSession {
                 homeStoryDesc = STORY.take(G.story).joinToString(" · ") { "✓ ${it.t}" }.ifEmpty { "just getting started" }
                 homeSackNote = sackN(ev) > 0
             }
+            "intake" -> {
+                // State carried directly in StationUiState fields below
+            }
             else -> {
-                barTitle = "THE BAR · ${st.name}"
+                barTitle = if (st === SITES.liner) "PASSENGER GALLERY · PSV MERIDIAN" else "THE BAR · ${st.name}"
                 barSouls = st.crew.size
                 barRumor = rumor()
                 barAgents = GS.AG
@@ -2185,6 +2279,12 @@ object GameSession {
             homeCareerDesc = homeCareerDesc,
             homeStoryDesc = homeStoryDesc,
             homeSackNote = homeSackNote,
+            docWaiver = G.docWaiver,
+            docTelemetry = G.docTelemetry,
+            docZone = G.docZone,
+            paperworkDone = G.paperworkDone,
+            bunkClaimed = G.bunkClaimed,
+            homeCanSleep = G.paperworkDone && G.bunkClaimed,
             barTitle = barTitle,
             barSouls = barSouls,
             barSeed = st.seed % 997,

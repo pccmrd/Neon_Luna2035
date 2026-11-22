@@ -481,16 +481,54 @@ private suspend fun TaskScope.stowAt(s: Ship) {
     walkTo(s.x, s.y, 9.0, 40.0, s)
 }
 
+private suspend fun TaskScope.intakePaperwork(): Boolean {
+    val G = GS.G ?: return false
+    act("INTAKE")
+    say("Disembarking PSV MERIDIAN — crossing east into SELENE HIGH Intake Office.")
+    if (!useRoom(SITES.sel, "intake", "intake")) return false
+    wait(0.8)
+    if (!G.docWaiver) {
+        clickUI("intake_waiver_check", true, 0.5) { AiUiBridge.panelActFn("intake_toggle", null, "waiver") }
+    }
+    if (!G.docTelemetry) {
+        clickUI("intake_telemetry_check", true, 0.5) { AiUiBridge.panelActFn("intake_toggle", null, "telemetry") }
+    }
+    if (!G.docZone) {
+        clickUI("intake_zone_check", true, 0.5) { AiUiBridge.panelActFn("intake_toggle", null, "zone") }
+    }
+    if (!G.paperworkDone && G.docWaiver && G.docTelemetry && G.docZone) {
+        say("Filing Consortium Intake ECC-2035 and drawing Room 14B keycard.")
+        clickUI("intake_submit_button", true, 0.8) { AiUiBridge.panelActFn("intake_submit", null, null) }
+    }
+    wait(0.5)
+    closePanel()
+    return G.paperworkDone
+}
+
+private suspend fun TaskScope.claimBunk14B(): Boolean {
+    val G = GS.G ?: return false
+    act("ROOM 14B")
+    say("Walking west to HAB 14 · Shared Room 14B to claim Consortium bunk.")
+    if (!useRoom(SITES.hab, "home", "home")) return false
+    wait(0.7)
+    if (G.paperworkDone && !G.bunkClaimed) {
+        clickUI("bunk_claim_button", true, 0.8) { AiUiBridge.panelActFn("bunk_claim", null, null) }
+    }
+    wait(0.5)
+    closePanel()
+    return G.bunkClaimed
+}
+
 private suspend fun TaskScope.crewShift() {
     val G = GS.G ?: return
     val W = GS.W ?: return
     val c = G.crew ?: return
     act("CREW SHIFT")
     if (c.state == "idle") {
-        say("Crew office. Foreman Lu runs EVA crews out to uncatalogued rocks.")
+        say("Crew office. Manager Liu Mei runs EVA crews out to uncatalogued rocks.")
         if (!useRoom(SITES.sel, "crew", "crew")) return
         wait(1.2)
-        val canBoard = c.state == "idle" && GS.ev != null && !GS.ev!!.hide
+        val canBoard = c.state == "idle" && GS.ev != null && !GS.ev!!.hide && G.paperworkDone && G.bunkClaimed
         val ok = clickUI("shift_btn", canBoard, 0.9) {
             AiUiBridge.panelActFn("shift", null, null)
         }
@@ -498,7 +536,7 @@ private suspend fun TaskScope.crewShift() {
             closePanel()
             return
         }
-        say("Aboard MULE-3 with two crewmates. Lu flies; we ride.")
+        say("Aboard MULE-3 with two bunkmates. Liu flies; we ride.")
     }
     until({ c.state == "site" || c.state == "idle" }, 160.0) { AP.wantWarp = true }
     if (c.state != "site") return
@@ -564,7 +602,7 @@ private suspend fun TaskScope.crewShift() {
             until({ (GS.ev?.suit ?: 100.0) > 95.0 || c.horn }, 8.0) { jetTo(s.x, s.y, 2.0, s) }
         }
     }
-    say("SHIFT HORN. Back to the hatch before Lu reels us in.")
+    say("SHIFT HORN. Back to the hatch before Liu reels us in.")
     val evEnd = GS.ev
     if (evEnd != null && !evEnd.hide) {
         walkTo(s.x, s.y, 9.0, 60.0, s)
@@ -1378,8 +1416,13 @@ private fun choose(): FrameTask {
         }
     }
     if (ev != null && !ev.hide) {
+        if (!ev.lightOn) press("light")
         if (c != null && c.state != "idle") return FrameTask("shift") { crewShift() }
         if (onSurfaceSuit()) {
+            if (G != null && !G.bunkClaimed) {
+                return if (G.paperworkDone) FrameTask("bunk") { claimBunk14B() }
+                else FrameTask("lift") { rideLift(true) }
+            }
             if (hare != null && hare.dock?.b === SITES.depot) {
                 return FrameTask("board") { boardOwn(hare) }
             }
@@ -1390,6 +1433,12 @@ private fun choose(): FrameTask {
                 }
             }
             return FrameTask("lift") { rideLift(true) }
+        }
+        if (G != null && !G.paperworkDone) {
+            return FrameTask("intake") { intakePaperwork() }
+        }
+        if (G != null && !G.bunkClaimed) {
+            return FrameTask("lift") { rideLift(false) }
         }
         if ((G?.bounty ?: 0) > 160 || ((ev.sack["core"] ?: 0) > 0 && (G?.cores ?: 0) < 3) || at("file")) {
             return FrameTask("catalog") { catalogOffice() }

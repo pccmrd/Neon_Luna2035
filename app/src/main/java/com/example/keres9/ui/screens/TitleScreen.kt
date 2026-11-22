@@ -66,7 +66,7 @@ fun TitleScreen(
                 modifier = Modifier.padding(bottom = if (compactLandscape) 8.dp else 14.dp)
             ) {
                 Text(
-                    text = "> SELENE CABLE AUTHORITY · LIFT 1 · NOMINAL",
+                    text = "> EASTERN CABLE CONSORTIUM · SELENE LIFT 1 · NOMINAL",
                     fontFamily = RobotoMonoFamily,
                     fontSize = 10.sp,
                     letterSpacing = 1.sp,
@@ -76,7 +76,7 @@ fun TitleScreen(
                     text = buildAnnotatedString {
                         append("> KERES-9 ORBITAL CATALOG · ")
                         withStyle(SpanStyle(color = KeresColors.Red)) {
-                            append("NO RESPONSE (DAY 212)")
+                            append("NO RESPONSE (DAY 212 · COMPUTE PARTITION)")
                         }
                     },
                     fontFamily = RobotoMonoFamily,
@@ -85,7 +85,7 @@ fun TitleScreen(
                     color = KeresColors.Cyan
                 )
                 Text(
-                    text = "> INBOUND HAUL ENGINES: 41 ACTIVE · UNCATALOGUED BODIES IN BAND: 300+",
+                    text = "> AUTONOMOUS HAUL ENGINES: 41 ACTIVE · SYNDICATE CLAIM BEACONS DETECTED",
                     fontFamily = RobotoMonoFamily,
                     fontSize = 10.sp,
                     letterSpacing = 1.sp,
@@ -135,9 +135,9 @@ fun TitleScreen(
             if (!compactLandscape) {
                 Text(
                     text = buildAnnotatedString {
-                        append("Haul engines drag rocks and comets in from the Belt and the Kuiper dark and park them in lunar orbit. Then the KERES-9 catalog AI died, and nobody knows what is up there anymore. You live in a hab on the Shackleton rim. Every morning you ride the cable to orbit. ")
+                        append("After the 2029 Compute Accords split the lunar rim between the Eastern Cable Consortium and the Western Syndicate, autonomous haul engines kept dragging rocks into orbit—even after the KERES-9 catalog AI died. ")
                         withStyle(SpanStyle(color = KeresColors.Amber)) {
-                            append("Start on a crew with a suit and a cutter. Buy a tug. Then buy a lander and fly it all the way down to the pad outside your door.")
+                            append("Disembark from PSV MERIDIAN, clear Intake at SELENE HIGH, claim your shared bunk on Shackleton Rim, then commute up to cut ore, buy a tug, and fly a lander home.")
                         }
                     },
                     fontFamily = RobotoMonoFamily,
@@ -240,7 +240,7 @@ fun TitleScreen(
             }
             Text(
                 text = "TOUCH: left stick moves/RCS (screen-relative) · right stick turns · right rail is throttle · tap to target\n" +
-                    "GAMEPAD/KB: WASD move/RCS · Q/E turn · SHIFT/CTRL throttle · M/SPACE cut/mine · F use · V alt · X match · Z brake · T target · G gear · C array · P AI · ESC pause",
+                    "GAMEPAD/KB: WASD move/RCS · Q/E turn · SHIFT/CTRL throttle · M/SPACE cut/mine · F use · V alt · L light · X match · Z brake · T target · G gear · C array · P AI · ESC pause",
                 fontFamily = RobotoMonoFamily,
                 fontSize = 9.sp,
                 lineHeight = 14.sp,

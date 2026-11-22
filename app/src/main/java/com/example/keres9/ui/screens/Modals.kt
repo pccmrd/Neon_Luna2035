@@ -127,9 +127,14 @@ fun HelpManualModal(modifier: Modifier = Modifier) {
                         .padding(14.dp)
                 ) {
                     ManualSection("THE CAREER", listOf(
-                        "1 · CREW HAND" to "Walk from HAB 14 to the SELENE LIFT, ride the cable to SELENE HIGH, sign on with Foreman Lu in the CREW OFFICE. The MULE-3 shuttle drops you at a rock: cut ore on EVA, fill your sack, get back aboard before the horn. Pay = base + half your haul.",
-                        "2 · ORBITAL TUG" to "Buy a WREN at the SELENE HIGH yard. It flies anywhere in the band. Harpoon a rock and mine from the hull. A bigger hold means more money.",
-                        "3 · LANDER" to "Buy a HARE at SHACKLETON DEPOT on the surface. You fly it all the way: launch from the pad, climb, circularise, mine and trade in orbit, then deorbit and land. Ice and metal sell for much more on the ground."
+                        "0 · ARRIVAL & INTAKE" to "Step off Earth liner PSV MERIDIAN and jet east into SELENE HIGH. Sign Form ECC-2035 at the INTAKE OFFICE (+120₡ & Bunk Keycard), ride SELENE LIFT ▼ down to Shackleton Rim, claim your shared bunk in HAB 14 · ROOM 14B, then commute ▲ back up.",
+                        "1 · CREW HAND" to "Report to Manager Liu Mei in the CREW OFFICE. MULE-3 drops you at an uncatalogued rock with your bunkmates: cut ore on EVA, fill your sack, and board before the horn. Pay = 140₡ base + 60% of your haul.",
+                        "2 · ORBITAL TUG" to "Buy a WREN at the SELENE HIGH yard. It flies anywhere in the band. Harpoon a rock and mine from the hull. Bigger holds fund deeper runs.",
+                        "3 · LANDER" to "Buy a HARE at SHACKLETON DEPOT on the surface. Launch manually off PAD 1, circularise in the band, mine and trade past Syndicate claims, then deorbit and land."
+                    ))
+                    ManualSection("LIGHTING & DARK CAVES", listOf(
+                        "Opaque Exteriors" to "Asteroid chambers and station interiors are sealed opaque from outside until you step indoors or breach rock with your cutter.",
+                        "LIGHT [L]" to "Unlit rock fissures and sealed vaults are near pitch-black inside. Toggle LIGHT (or press L) to cast your suit headlamp or ship floodlight cone."
                     ))
                     ManualSection("FLYING NEAR THE MOON", listOf(
                         "Gravity" to "The Moon pulls 1.6 m/s² at the surface. The camera rotates so \"up\" is always away from the Moon. The dotted line is your ballistic path, and IMPACT means it hits the ground.",
@@ -140,14 +145,14 @@ fun HelpManualModal(modifier: Modifier = Modifier) {
                     ))
                     ManualSection("DISCOVERY", listOf(
                         "Survey" to "Uncatalogued rocks show as UNKNOWN. Keep one inside your array range (or ping it with your suit scanner) until the survey finishes. The Catalog Office pays a bounty for every body.",
-                        "Deep contacts" to "SCAN opens the directional array. Sweep it over a rock and tune the dial onto a resonance, then hold the lock to reveal veins, sealed chambers, KERES-9 core shards and claim beacons."
+                        "Deep contacts" to "SCAN opens the directional array. Sweep it over a rock and tune the dial onto a resonance, then hold the lock to reveal veins, sealed chambers, KERES-9 core shards and Helion claim beacons."
                     ))
                     ManualSection("EVA", listOf(
                         "Walking" to "On the ground: left stick walks/hops. Air refills indoors. Stations and habs have rooms. Walk into a room and tap the context button at its terminal.",
                         "In orbit" to "The suit jetpack is in the left stick, and MINE runs your cutter. Ore goes straight into your sack. Bring it to the MULE or your own ship."
                     ))
                     ManualSection("AI PLAYER", listOf(
-                        "AI PILOT" to "The computer plays with the same sticks, rail and buttons you use. It walks, rides the lift, works crew shifts, buys a tug, mines, buys a lander, launches, lands and delivers. Touch the controls to take over."
+                        "AI PILOT" to "The computer plays with the same sticks, rail and buttons you use. It clears Intake, claims its bunk, rides the lift, works crew shifts, buys a tug, mines, buys a lander, launches and lands. Touch the controls to take over."
                     ))
                 }
             }
@@ -320,7 +325,7 @@ fun DeathModal(
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
                 )
                 Text(
-                    text = "Rim medics found you. Your ships are where you left them.",
+                    text = "Medical recovery picked up your beacon. Your ships are where you left them.",
                     fontFamily = RobotoMonoFamily,
                     fontSize = 11.sp,
                     color = KeresColors.Dim,
@@ -336,7 +341,7 @@ fun DeathModal(
                         .padding(horizontal = 14.dp)
                         .testTag("respawn_button")
                 ) {
-                    Text("WAKE UP IN HAB 14 · −15% CREDITS")
+                    Text("RECOVER TO QUARTERS · −15% CREDITS")
                 }
             }
         }
